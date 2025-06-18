@@ -1,5 +1,4 @@
-
-import { Toaster } from "@/components/ui/toaster";
+import { Toaster as ToasterUI } from "@/components/ui/toaster";
 import { Toaster as Sonner } from "@/components/ui/sonner";
 import { TooltipProvider } from "@/components/ui/tooltip";
 import { QueryClient, QueryClientProvider } from "@tanstack/react-query";
@@ -15,8 +14,6 @@ import Index from "./pages/Index";
 import NotFound from "./pages/NotFound";
 import Login from "./pages/auth/Login";
 import Register from "./pages/auth/Register";
-
-// New page imports
 import HealthMetrics from "./pages/HealthMetrics";
 import Vitals from "./pages/Vitals";
 import Trends from "./pages/Trends";
@@ -36,29 +33,24 @@ const queryClient = new QueryClient({
   },
 });
 
-// Helper component to conditionally render AI Assistant only for authenticated users
 const AIAssistantWrapper = () => {
   const { isAuthenticated } = useAuth();
-  
   if (!isAuthenticated) return null;
   return <AIAssistant />;
-}
+};
 
 const App = () => (
   <QueryClientProvider client={queryClient}>
     <AuthProvider>
       <ThemeProvider>
         <TooltipProvider>
-          <Toaster />
+          <ToasterUI />
           <Sonner />
           <BrowserRouter>
             <ActivityTracker />
             <Routes>
-              {/* Auth Routes */}
               <Route path="/login" element={<Login />} />
               <Route path="/register" element={<Register />} />
-              
-              {/* Protected Routes */}
               <Route element={<ProtectedRoute />}>
                 <Route path="/" element={<Index />} />
                 <Route path="/metrics" element={<HealthMetrics />} />
@@ -70,7 +62,6 @@ const App = () => (
                 <Route path="/settings" element={<Settings />} />
                 <Route path="/activities" element={<UserActivities />} />
               </Route>
-              
               <Route path="*" element={<NotFound />} />
             </Routes>
             <AIAssistantWrapper />
