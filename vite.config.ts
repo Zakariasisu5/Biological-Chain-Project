@@ -30,6 +30,7 @@ export default defineConfig(({ mode }) => ({
       define: {
         global: 'globalThis',
         'process.env': JSON.stringify({})
+        base: process.env.VITE.BASE.PATH || "/Biological-chain-project",
       }
     }
   }
