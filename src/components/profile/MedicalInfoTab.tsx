@@ -26,7 +26,7 @@ export const MedicalInfoTab: React.FC<MedicalInfoProps> = ({
   handleInputChange,
   handleSave,
 }) => {
-  return (
+  return (<>
     <Card>
       <CardHeader>
         <CardTitle>Medical Information</CardTitle>
@@ -114,5 +114,6 @@ export const MedicalInfoTab: React.FC<MedicalInfoProps> = ({
         </div>
       </CardContent>
     </Card>
+    </>
   );
 };

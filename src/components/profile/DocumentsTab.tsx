@@ -10,7 +10,6 @@ import { useToast } from '@/hooks/use-toast';
 import { FileObject as SupabaseFileObject } from '@supabase/storage-js';
 
 interface FileObject extends SupabaseFileObject {
-  // Add any additional properties that your component uses
 }
 
 export const DocumentsTab: React.FC = () => {

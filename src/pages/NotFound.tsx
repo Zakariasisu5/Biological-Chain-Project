@@ -1,11 +1,11 @@
-
 import React from 'react';
 import { Button } from '@/components/ui/button';
 import { Link } from 'react-router-dom';
 import { Home } from 'lucide-react';
 
 const NotFound = () => {
-  return (
+  return ( 
+    <>
     <div className="min-h-screen flex items-center justify-center bg-background">
       <div className="text-center space-y-6 p-8">
         <div className="mx-auto w-20 h-20 rounded-full bg-primary/10 flex items-center justify-center">
@@ -26,6 +26,7 @@ const NotFound = () => {
         </Button>
       </div>
     </div>
+    </>
   );
 };
 
