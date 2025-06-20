@@ -29,8 +29,8 @@ export default defineConfig(({ mode }) => ({
     esbuildOptions: {
       define: {
         global: 'globalThis',
-        'process.env': JSON.stringify({})
-        base: process.env.VITE.BASE.PATH || "/Biological-chain-project",
+        'process.env': JSON.stringify({}),
+        base: process.env.VITE_BASE_PATH || "/Biological-chain-project",
       }
     }
   }
