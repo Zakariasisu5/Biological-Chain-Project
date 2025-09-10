@@ -1,4 +1,3 @@
-
 import { defineConfig } from "vite";
 import react from "@vitejs/plugin-react-swc";
 import path from "path";
@@ -12,26 +11,43 @@ export default defineConfig(({ mode }) => ({
   },
   plugins: [
     react(),
-    mode === 'development' &&
-    componentTagger(),
+    mode === "development" && componentTagger(),
   ].filter(Boolean),
+  base: process.env.VITE_BASE_PATH || "/Biological-chain-project",
   resolve: {
     alias: {
       "@": path.resolve(__dirname, "./src"),
+      // polyfill common node built-ins used by some web3 libs
+      buffer: "buffer/",
+      util: "util/",
+      process: "process/browser",
     },
   },
   define: {
-    // Ensure process is defined globally
-    'process.env': {},
-    'global': 'globalThis',
+    "process.env": {},
+    global: "globalThis",
   },
   optimizeDeps: {
+    // force pre-bundling for packages that commonly contain CJS
+    include: [
+      "@walletconnect/web3-provider",
+      "ethers",
+      "web3",
+      "web3modal",
+      "buffer",
+      "util",
+    ],
     esbuildOptions: {
       define: {
-        global: 'globalThis',
-        'process.env': JSON.stringify({}),
-        base: process.env.VITE_BASE_PATH || "/Biological-chain-project",
-      }
-    }
-  }
+        global: "globalThis",
+        "process.env": JSON.stringify({}),
+      },
+    },
+  },
+  build: {
+    // help Rollup/esbuild handle mixed CJS/ESM modules at build time
+    commonjsOptions: {
+      transformMixedEsModules: true,
+    },
+  },
 }));
