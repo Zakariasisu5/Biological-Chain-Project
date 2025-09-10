@@ -1,4 +1,3 @@
-
 import React, { useState, useEffect } from 'react';
 import { Card, CardContent, CardHeader, CardTitle, CardDescription } from '@/components/ui/card';
 import { FileUploader } from '@/components/profile/FileUploader';
@@ -130,7 +129,7 @@ export const DocumentsTab: React.FC = () => {
                   Documents
                 </h4>
                 <FileUploader 
-                  type="document" 
+                  type="any" 
                   maxSizeMB={20}
                   onUploadComplete={handleUploadComplete}
                 />

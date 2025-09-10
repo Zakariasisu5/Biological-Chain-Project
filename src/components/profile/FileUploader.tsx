@@ -1,13 +1,14 @@
-
 import React from 'react';
+// use the local-storage hook instead of server-backed one
+import { useLocalFileUpload, FileType } from '@/hooks/useLocalFileUpload';
+import type { FileType as LegacyFileType } from '@/hooks/useFileUpload';
 import { FileInputArea } from '@/components/profile/FileInputArea';
 import { FileStatusIndicator } from '@/components/profile/FileStatusIndicator';
-import { useFileUpload, FileType } from '@/hooks/useFileUpload';
 
 interface FileUploaderProps {
   type?: FileType;
   maxSizeMB?: number;
-  onUploadComplete?: (filePath: string) => void;
+  onUploadComplete?: (fileId: string) => void;
   className?: string;
 }
 
@@ -28,7 +29,7 @@ export function FileUploader({
     uploadFile,
     resetFile,
     currentUser
-  } = useFileUpload({
+  } = useLocalFileUpload({
     type,
     maxSizeMB,
     onUploadComplete
@@ -40,7 +41,7 @@ export function FileUploader({
         <div className="flex items-center justify-center w-full">
           <FileInputArea
             id={`file-upload-${type}`}
-            type={type}
+            type={type as unknown as LegacyFileType} // cast to the legacy FileType expected by FileInputArea
             maxSizeMB={maxSizeMB}
             error={error}
             bucketStatus={bucketStatus}
@@ -48,7 +49,7 @@ export function FileUploader({
             onFileChange={handleFileChange}
             fileName={file?.name}
             currentUser={currentUser}
-            acceptedFileTypes={getAcceptedFileTypes()}
+            acceptedFileTypes={getAcceptedFileTypes().join(',')}
           />
         </div>
         

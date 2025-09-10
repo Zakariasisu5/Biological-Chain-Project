@@ -1,4 +1,3 @@
-
 import React, { useState } from 'react';
 import { Bell, Search, LogOut, X } from 'lucide-react';
 import { Button } from '@/components/ui/button';
@@ -12,6 +11,7 @@ import { Popover, PopoverContent, PopoverTrigger } from '@/components/ui/popover
 import { mockAlerts } from '@/lib/mockData';
 import { Badge } from '@/components/ui/badge';
 import { AlertData } from '@/lib/types';
+import ThemeToggle from '@/components/theme/ThemeToggle';
 
 interface HeaderProps {
   children?: React.ReactNode;
@@ -169,6 +169,10 @@ const Header = ({ children }: HeaderProps) => {
             </div>
           </PopoverContent>
         </Popover>
+
+        <div className="flex items-center gap-2">
+          <ThemeToggle />
+        </div>
       </div>
     </header>
   );
