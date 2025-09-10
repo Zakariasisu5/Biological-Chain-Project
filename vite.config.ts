@@ -13,7 +13,8 @@ export default defineConfig(({ mode }) => ({
     react(),
     mode === "development" && componentTagger(),
   ].filter(Boolean),
-  base: process.env.VITE_BASE_PATH || "/Biological-chain-project",
+  // Use root base when running on Vercel; otherwise allow explicit VITE_BASE_PATH.
+  base: process.env.VERCEL ? "/" : (process.env.VITE_BASE_PATH || "/"),
   resolve: {
     alias: {
       "@": path.resolve(__dirname, "./src"),
