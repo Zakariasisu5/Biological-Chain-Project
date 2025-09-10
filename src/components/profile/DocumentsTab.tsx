@@ -7,6 +7,8 @@ import { useAuth } from '@/contexts/AuthContext';
 import { Button } from '@/components/ui/button';
 import { useToast } from '@/hooks/use-toast';
 import { FileObject as SupabaseFileObject } from '@supabase/storage-js';
+import { addRecordOnChain, fetchRecords } from '@/integrations/medicalContract';
+import OnChainRecords from '@/components/blockchain/OnChainRecords';
 
 interface FileObject extends SupabaseFileObject {
 }
@@ -86,9 +88,34 @@ export const DocumentsTab: React.FC = () => {
     return <File className="h-5 w-5 text-amber-500" />;
   };
 
-  const handleUploadComplete = () => {
-    fetchRecentUploads();
-  };
+  // called with (cid, localId)
+  const handleUploadComplete = async (cid?: string, localId?: string) => {
+     try {
+       // get the connected wallet address (patient)
+       if (!(window as any).ethereum) {
+         toast({ variant: 'destructive', title: 'Wallet not connected', description: 'Please connect your wallet to record the upload on-chain.' });
+         return;
+       }
+ 
+       // use ethers provider to get signer address
+       const provider = new (await import('ethers')).BrowserProvider((window as any).ethereum);
+       const signer = await provider.getSigner();
+       const patientAddress = await signer.getAddress();
+ 
+      if (!cid) {
+        toast({ variant: 'destructive', title: 'Upload failed', description: 'No CID returned from IPFS upload.' });
+        return;
+      }
+      // add IPFS CID on-chain (store pointer only)
+      await addRecordOnChain(patientAddress, cid, "document", localId ? `local:${localId}` : "local-upload");
+ 
+       toast({ title: 'Recorded on-chain', description: 'Upload reference saved to blockchain.' });
+       fetchRecentUploads();
+     } catch (err: any) {
+       console.error('on-chain record failed', err);
+       toast({ variant: 'destructive', title: 'On-chain record failed', description: err?.message || String(err) });
+     }
+   };
 
   return (
     <Card>
@@ -199,8 +226,13 @@ export const DocumentsTab: React.FC = () => {
               </div>
             )}
           </div>
-        </div>
-      </CardContent>
-    </Card>
-  );
-};
+
+          <div>
+            <h3 className="text-lg font-medium mb-2">On-chain Records</h3>
+            <OnChainRecords />
+          </div>
+         </div>
+       </CardContent>
+     </Card>
+   );
+ };
