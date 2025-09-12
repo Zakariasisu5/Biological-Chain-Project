@@ -1,9 +1,10 @@
 import React from 'react';
+import { ChangeEvent } from "react";
 import { useLocalFileUpload, FileType } from '@/hooks/useLocalFileUpload';
 import type { FileType as LegacyFileType } from '@/hooks/useFileUpload';
 import { FileInputArea } from '@/components/profile/FileInputArea';
 import { FileStatusIndicator } from '@/components/profile/FileStatusIndicator';
-import { uploadFileToWeb3Storage } from '@/integrations/ipfs';
+import  uploadFileToWeb3Storage  from '@/integrations/ipfs';
 
 interface FileUploaderProps {
   type?: FileType;

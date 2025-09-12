@@ -1,10 +1,12 @@
-//import { ethers } from "hardhat";
+import pkg from "hardhat";
+const { ethers } = pkg;
 
 async function main() {
   const MedicalRecords = await ethers.getContractFactory("MedicalRecords");
   const medical = await MedicalRecords.deploy();
-  await medical.deployed();
-  console.log("MedicalRecords deployed to:", medical.address);
+  await medical.waitForDeployment();
+
+  console.log("✅ MedicalRecords deployed to:", await medical.getAddress());
 }
 
 main().catch((error) => {
