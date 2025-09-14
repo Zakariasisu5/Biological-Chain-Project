@@ -1,15 +1,17 @@
 // components/WalletConnect.tsx
-import React, { useState, useEffect } from 'react';
+import React, { useState, useEffect } from "react";
 import {
-  Card, CardContent, CardHeader, CardTitle, CardDescription,
-  Button, Badge, Alert, AlertDescription,
-  Select, SelectContent, SelectItem, SelectTrigger, SelectValue,
-  TooltipProvider
-} from '@/components/ui';
-import { Check, Wallet, UploadCloud, ExternalLink } from 'lucide-react';
-import { WalletInfo, connectWallet, disconnectWallet, WalletType } from '@/utils/walletUtils';
-import { useToast } from '@/hooks/use-toast';
-import { useActivityTracker } from '@/utils/activityTracker';
+  Card, CardContent, CardHeader, CardTitle, CardDescription
+} from "@/components/ui/card";
+import { Button } from "@/components/ui/button";
+import { Badge } from "@/components/ui/badge";
+import { Alert, AlertDescription } from "@/components/ui/alert";
+import { Select, SelectTrigger, SelectValue, SelectContent, SelectItem } from "@/components/ui/select";
+import { TooltipProvider } from "@/components/ui/tooltip";
+import { Check, Wallet, UploadCloud, ExternalLink } from "lucide-react";
+import { WalletInfo, connectWallet, disconnectWallet, WalletType } from "@/utils/walletUtils";
+import { useToast } from "@/hooks/use-toast";
+import { useActivityTracker } from "@/utils/activityTracker";
 
 interface WalletConnectProps {
   walletInfo: WalletInfo;
@@ -18,44 +20,68 @@ interface WalletConnectProps {
   className?: string;
 }
 
-type ExtendedWalletType = WalletType;
+type ExtendedWalletType = WalletType; // includes 'walletconnect'
 
-const WalletConnect: React.FC<WalletConnectProps> = ({
+export default function WalletConnect({
   walletInfo,
   onWalletConnect,
   onWalletDisconnect,
   className
-}) => {
+}: WalletConnectProps) {
   const [isConnecting, setIsConnecting] = useState(false);
-  const [selectedWalletType, setSelectedWalletType] = useState<ExtendedWalletType>('walletconnect');
+  const [selectedWalletType, setSelectedWalletType] = useState<ExtendedWalletType>("walletconnect");
   const { toast } = useToast();
   const { trackActivity } = useActivityTracker();
 
+  // Force dark theme
   useEffect(() => {
-    document.documentElement.classList.add('dark');
-    localStorage.setItem('theme', 'dark');
+    document.documentElement.classList.add("dark");
+    localStorage.setItem("theme", "dark");
     return () => {
-      document.documentElement.classList.remove('dark');
-      localStorage.removeItem('theme');
+      document.documentElement.classList.remove("dark");
+      localStorage.removeItem("theme");
     };
   }, []);
 
-  const walletOptions = [
-    { value: 'metamask', label: 'MetaMask', installUrl: 'https://metamask.io/download/', icon: <Wallet /> },
-    { value: 'coinbase', label: 'Coinbase Wallet', installUrl: 'https://www.coinbase.com/wallet', icon: <Wallet /> },
-    { value: 'walletconnect', label: 'WalletConnect', icon: <Wallet /> },
-    { value: 'trustwallet', label: 'Trust Wallet', installUrl: 'https://trustwallet.com/download', icon: <Wallet /> }
+  const walletOptions: {
+    value: ExtendedWalletType;
+    label: string;
+    installUrl?: string;
+    icon: React.ReactNode;
+  }[] = [
+    {
+      value: "metamask",
+      label: "MetaMask",
+      installUrl: "https://metamask.io/download/",
+      icon: <Wallet />
+    },
+    {
+      value: "coinbase",
+      label: "Coinbase Wallet",
+      installUrl: "https://www.coinbase.com/wallet",
+      icon: <Wallet />
+    },
+    {
+      value: "walletconnect",
+      label: "WalletConnect",
+      icon: <Wallet />
+    },
+    {
+      value: "trustwallet",
+      label: "Trust Wallet",
+      installUrl: "https://trustwallet.com/download",
+      icon: <Wallet />
+    }
   ];
 
-  const shortenAddress = (address: string) =>
-    address ? `${address.slice(0, 6)}...${address.slice(-4)}` : '';
+  const shortenAddress = (addr: string) => addr ? `${addr.slice(0, 6)}...${addr.slice(-4)}` : "";
 
   const viewOnExplorer = () => {
-    if (!walletInfo?.address) {
-      toast({ title: 'No address', description: 'No wallet address available', variant: 'destructive' });
+    if (!walletInfo.address) {
+      toast({ title: "No address", description: "No wallet address available", variant: "destructive" });
       return;
     }
-    window.open(`https://etherscan.io/address/${walletInfo.address}`, '_blank', 'noopener');
+    window.open(`https://etherscan.io/address/${walletInfo.address}`, "_blank", "noopener");
   };
 
   const handleConnectWallet = async () => {
@@ -64,21 +90,17 @@ const WalletConnect: React.FC<WalletConnectProps> = ({
       const info = await connectWallet(selectedWalletType);
       onWalletConnect(info);
       toast({
-        title: 'Wallet Connected',
+        title: "Wallet Connected",
         description: `Connected: ${shortenAddress(info.address)}`
       });
-      trackActivity('connect_wallet', '/blockchain', {
+      trackActivity("connect_wallet", "/blockchain", {
         address: info.address,
         network: info.network,
         chainId: info.chainId,
         walletType: selectedWalletType
       });
-    } catch (error: any) {
-      toast({
-        title: 'Connection Failed',
-        description: error?.message || 'Failed to connect wallet',
-        variant: 'destructive'
-      });
+    } catch (err: any) {
+      toast({ title: "Connection Failed", description: err.message, variant: "destructive" });
     } finally {
       setIsConnecting(false);
     }
@@ -87,40 +109,56 @@ const WalletConnect: React.FC<WalletConnectProps> = ({
   const handleDisconnect = async () => {
     await disconnectWallet();
     onWalletDisconnect();
-    toast({ title: 'Disconnected', description: 'Wallet disconnected' });
-    trackActivity('disconnect_wallet', '/blockchain', {});
+    toast({ title: "Disconnected", description: "Wallet disconnected" });
+    trackActivity("disconnect_wallet", "/blockchain", {});
   };
 
   const renderWalletSelector = () => (
     <TooltipProvider>
       <div className="flex flex-col gap-3">
         <div className="flex items-center gap-2">
-          <Select value={selectedWalletType} onValueChange={v => setSelectedWalletType(v as ExtendedWalletType)}>
-            <SelectTrigger className="w-56"><SelectValue /></SelectTrigger>
+          <Select onValueChange={v => setSelectedWalletType(v as ExtendedWalletType)} value={selectedWalletType}>
+            <SelectTrigger className="w-56">
+              <SelectValue />
+            </SelectTrigger>
             <SelectContent>
-              {walletOptions.map(opt => (
-                <SelectItem key={opt.value} value={opt.value}>
-                  <div className="flex items-center gap-2">{opt.icon}{opt.label}</div>
+              {walletOptions.map(o => (
+                <SelectItem key={o.value} value={o.value}>
+                  <div className="flex items-center gap-2">{o.icon}{o.label}</div>
                 </SelectItem>
               ))}
             </SelectContent>
           </Select>
           <Button onClick={handleConnectWallet} disabled={isConnecting}>
-            {isConnecting ? 'Connecting...' : 'Connect'}
+            {isConnecting ? "Connecting..." : "Connect"}
           </Button>
         </div>
 
         <div className="flex items-center gap-2">
-          <Button variant="ghost" size="sm" onClick={() => setSelectedWalletType('walletconnect')}>Use WalletConnect</Button>
-          <Button variant="outline" size="sm" onClick={() => {
-            const opt = walletOptions.find(o => o.value === selectedWalletType);
-            if (opt?.installUrl) window.open(opt.installUrl, '_blank', 'noopener');
-            else toast({ title: 'Install Wallet', description: 'Please install the selected wallet or use WalletConnect' });
-          }}>Install / Help</Button>
+          <Button variant="ghost" size="sm" onClick={() => setSelectedWalletType("walletconnect")}>
+            Use WalletConnect
+          </Button>
+          <Button
+            variant="outline"
+            size="sm"
+            onClick={() => {
+              const opt = walletOptions.find(o => o.value === selectedWalletType);
+              if (opt?.installUrl) window.open(opt.installUrl, "_blank", "noopener");
+              else
+                toast({
+                  title: "Install Wallet",
+                  description: "Please install the selected wallet or use WalletConnect"
+                });
+            }}
+          >
+            Install / Help
+          </Button>
         </div>
 
         <Alert>
-          <AlertDescription>Use WalletConnect if a browser extension isn't available.</AlertDescription>
+          <AlertDescription>
+            Use WalletConnect if a browser extension isn't available.
+          </AlertDescription>
         </Alert>
       </div>
     </TooltipProvider>
@@ -144,7 +182,9 @@ const WalletConnect: React.FC<WalletConnectProps> = ({
                   {walletOptions.find(w => w.value === walletInfo.walletType)?.icon}
                   <span>{walletInfo.walletType}</span>
                 </div>
-                <p className="text-sm font-mono text-muted-foreground">{shortenAddress(walletInfo.address)}</p>
+                <p className="text-sm font-mono text-muted-foreground">
+                  {shortenAddress(walletInfo.address)}
+                </p>
               </div>
               <Badge className="bg-green-100 text-green-800 hover:bg-green-200">
                 <Check className="h-3 w-3 mr-1" /> Connected
@@ -152,5 +192,35 @@ const WalletConnect: React.FC<WalletConnectProps> = ({
             </div>
 
             <div className="grid grid-cols-2 gap-2 text-sm">
-              <span className="text-muted-foreground">Network:</span><span className="font-medium">{walletInfo.network}</span>
-              <span className="text-muted-foreground">Balance:</span><span className
+              <span className="text-muted-foreground">Network:</span>
+              <span className="font-medium">{walletInfo.network}</span>
+              <span className="text-muted-foreground">Balance:</span>
+              <span className="font-medium">
+                {parseFloat(walletInfo.balance).toFixed(4)} ETH
+              </span>
+            </div>
+
+            <div className="flex flex-col sm:flex-row gap-2">
+              <Button variant="outline" size="sm" className="gap-1" onClick={viewOnExplorer}>
+                <ExternalLink className="h-4 w-4" /> View on Explorer
+              </Button>
+              <Button variant="outline" size="sm" className="gap-1">
+                <UploadCloud className="h-4 w-4" /> Backup Data
+              </Button>
+              <Button variant="destructive" size="sm" onClick={handleDisconnect}>
+                Disconnect
+              </Button>
+            </div>
+          </div>
+        ) : (
+          <div className="flex flex-col gap-4">
+            <p className="text-sm">
+              Connect your blockchain wallet to securely manage your health records.
+            </p>
+            {renderWalletSelector()}
+          </div>
+        )}
+      </CardContent>
+    </Card>
+  );
+}
