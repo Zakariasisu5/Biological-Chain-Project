@@ -29,6 +29,7 @@ export async function connectWallet(walletType: WalletType): Promise<WalletInfo>
       }
     });
     await currentProvider.enable();
+    (window as any).walletConnectProvider = currentProvider; // for disconnect
   }
 
   if (walletType === 'coinbase') {
@@ -59,8 +60,10 @@ export async function connectWallet(walletType: WalletType): Promise<WalletInfo>
 }
 
 export async function disconnectWallet() {
-  if (currentProvider?.disconnect) {
-    await currentProvider.disconnect();
+  try {
+    const wc = (window as any).walletConnectProvider;
+    if (wc?.disconnect) await wc.disconnect();
+  } catch (err) {
+    console.warn("Wallet disconnect failed", err);
   }
-  currentProvider = null;
 }
