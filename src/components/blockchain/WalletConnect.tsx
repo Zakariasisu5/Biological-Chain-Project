@@ -1,15 +1,29 @@
-// components/WalletConnect.tsx
 import React, { useState, useEffect } from "react";
 import {
-  Card, CardContent, CardHeader, CardTitle, CardDescription
+  Card,
+  CardContent,
+  CardHeader,
+  CardTitle,
+  CardDescription,
 } from "@/components/ui/card";
 import { Button } from "@/components/ui/button";
 import { Badge } from "@/components/ui/badge";
 import { Alert, AlertDescription } from "@/components/ui/alert";
-import { Select, SelectTrigger, SelectValue, SelectContent, SelectItem } from "@/components/ui/select";
+import {
+  Select,
+  SelectTrigger,
+  SelectValue,
+  SelectContent,
+  SelectItem,
+} from "@/components/ui/select";
 import { TooltipProvider } from "@/components/ui/tooltip";
 import { Check, Wallet, UploadCloud, ExternalLink } from "lucide-react";
-import { WalletInfo, connectWallet, disconnectWallet, WalletType } from "@/utils/walletUtils";
+import {
+  WalletInfo,
+  connectWallet,
+  disconnectWallet,
+  WalletType,
+} from "@/utils/walletUtils";
 import { useToast } from "@/hooks/use-toast";
 import { useActivityTracker } from "@/utils/activityTracker";
 
@@ -20,16 +34,21 @@ interface WalletConnectProps {
   className?: string;
 }
 
-type ExtendedWalletType = WalletType; // includes 'walletconnect'
-
 export default function WalletConnect({
   walletInfo,
   onWalletConnect,
   onWalletDisconnect,
-  className
+  className,
 }: WalletConnectProps) {
+  // Detect MetaMask
+  const hasMetaMask =
+    typeof window !== "undefined" && Boolean((window as any).ethereum?.isMetaMask);
+
+  // Default selection
+  const defaultType: WalletType = hasMetaMask ? "metamask" : "walletconnect";
+
   const [isConnecting, setIsConnecting] = useState(false);
-  const [selectedWalletType, setSelectedWalletType] = useState<ExtendedWalletType>("walletconnect");
+  const [selected, setSelected] = useState<WalletType>(defaultType);
   const { toast } = useToast();
   const { trackActivity } = useActivityTracker();
 
@@ -44,110 +63,131 @@ export default function WalletConnect({
   }, []);
 
   const walletOptions: {
-    value: ExtendedWalletType;
+    value: WalletType;
     label: string;
     installUrl?: string;
     icon: React.ReactNode;
+    disabled?: boolean;
   }[] = [
     {
       value: "metamask",
       label: "MetaMask",
       installUrl: "https://metamask.io/download/",
-      icon: <Wallet />
+      icon: <Wallet />,
+      disabled: !hasMetaMask,
     },
     {
       value: "coinbase",
       label: "Coinbase Wallet",
       installUrl: "https://www.coinbase.com/wallet",
-      icon: <Wallet />
+      icon: <Wallet />,
     },
     {
       value: "walletconnect",
       label: "WalletConnect",
-      icon: <Wallet />
+      icon: <Wallet />,
     },
     {
       value: "trustwallet",
       label: "Trust Wallet",
       installUrl: "https://trustwallet.com/download",
-      icon: <Wallet />
-    }
+      icon: <Wallet />,
+    },
   ];
 
-  const shortenAddress = (addr: string) => addr ? `${addr.slice(0, 6)}...${addr.slice(-4)}` : "";
+  const shorten = (addr: string) => (addr ? `${addr.slice(0, 6)}…${addr.slice(-4)}` : "");
 
-  const viewOnExplorer = () => {
+  const viewExplorer = () => {
     if (!walletInfo.address) {
-      toast({ title: "No address", description: "No wallet address available", variant: "destructive" });
+      toast({
+        title: "No address",
+        description: "No wallet address available",
+        variant: "destructive",
+      });
       return;
     }
     window.open(`https://etherscan.io/address/${walletInfo.address}`, "_blank", "noopener");
   };
 
-  const handleConnectWallet = async () => {
+  async function handleConnect() {
+    // redirect if MetaMask missing
+    if (selected === "metamask" && !hasMetaMask) {
+      window.open("https://metamask.io/download/", "_blank");
+      toast({
+        title: "Install MetaMask",
+        description: "Redirecting to MetaMask download page",
+        variant: "destructive",
+      });
+      return;
+    }
+
     setIsConnecting(true);
     try {
-      const info = await connectWallet(selectedWalletType);
+      const info = await connectWallet(selected);
       onWalletConnect(info);
       toast({
         title: "Wallet Connected",
-        description: `Connected: ${shortenAddress(info.address)}`
+        description: shorten(info.address),
       });
       trackActivity("connect_wallet", "/blockchain", {
         address: info.address,
         network: info.network,
         chainId: info.chainId,
-        walletType: selectedWalletType
+        walletType: info.walletType,
       });
     } catch (err: any) {
-      toast({ title: "Connection Failed", description: err.message, variant: "destructive" });
+      toast({
+        title: "Connection Failed",
+        description: err?.message || "Failed to connect wallet",
+        variant: "destructive",
+      });
     } finally {
       setIsConnecting(false);
     }
-  };
+  }
 
-  const handleDisconnect = async () => {
+  async function handleDisconnect() {
     await disconnectWallet();
     onWalletDisconnect();
     toast({ title: "Disconnected", description: "Wallet disconnected" });
     trackActivity("disconnect_wallet", "/blockchain", {});
-  };
+  }
 
-  const renderWalletSelector = () => (
+  const renderSelector = () => (
     <TooltipProvider>
       <div className="flex flex-col gap-3">
         <div className="flex items-center gap-2">
-          <Select onValueChange={v => setSelectedWalletType(v as ExtendedWalletType)} value={selectedWalletType}>
+          <Select value={selected} onValueChange={(v) => setSelected(v as WalletType)}>
             <SelectTrigger className="w-56">
               <SelectValue />
             </SelectTrigger>
             <SelectContent>
-              {walletOptions.map(o => (
-                <SelectItem key={o.value} value={o.value}>
-                  <div className="flex items-center gap-2">{o.icon}{o.label}</div>
+              {walletOptions.map((opt) => (
+                <SelectItem key={opt.value} value={opt.value} disabled={opt.disabled}>
+                  <div className="flex items-center gap-2">{opt.icon}{opt.label}</div>
                 </SelectItem>
               ))}
             </SelectContent>
           </Select>
-          <Button onClick={handleConnectWallet} disabled={isConnecting}>
+          <Button onClick={handleConnect} disabled={isConnecting}>
             {isConnecting ? "Connecting..." : "Connect"}
           </Button>
         </div>
 
         <div className="flex items-center gap-2">
-          <Button variant="ghost" size="sm" onClick={() => setSelectedWalletType("walletconnect")}>
+          <Button variant="ghost" size="sm" onClick={() => setSelected("walletconnect")}>
             Use WalletConnect
           </Button>
           <Button
             variant="outline"
             size="sm"
             onClick={() => {
-              const opt = walletOptions.find(o => o.value === selectedWalletType);
-              if (opt?.installUrl) window.open(opt.installUrl, "_blank", "noopener");
+              const opt = walletOptions.find((o) => o.value === selected);
+              if (opt?.installUrl) window.open(opt.installUrl, "_blank");
               else
                 toast({
                   title: "Install Wallet",
-                  description: "Please install the selected wallet or use WalletConnect"
+                  description: "Please install the selected wallet or use WalletConnect",
                 });
             }}
           >
@@ -157,7 +197,7 @@ export default function WalletConnect({
 
         <Alert>
           <AlertDescription>
-            Use WalletConnect if a browser extension isn't available.
+            Use WalletConnect if a browser extension isn’t available.
           </AlertDescription>
         </Alert>
       </div>
@@ -179,11 +219,14 @@ export default function WalletConnect({
             <div className="flex justify-between items-center">
               <div>
                 <div className="flex items-center gap-2 font-medium">
-                  {walletOptions.find(w => w.value === walletInfo.walletType)?.icon}
+                  {
+                    walletOptions.find((w) => w.value === walletInfo.walletType)
+                      ?.icon
+                  }
                   <span>{walletInfo.walletType}</span>
                 </div>
                 <p className="text-sm font-mono text-muted-foreground">
-                  {shortenAddress(walletInfo.address)}
+                  {shorten(walletInfo.address)}
                 </p>
               </div>
               <Badge className="bg-green-100 text-green-800 hover:bg-green-200">
@@ -201,7 +244,12 @@ export default function WalletConnect({
             </div>
 
             <div className="flex flex-col sm:flex-row gap-2">
-              <Button variant="outline" size="sm" className="gap-1" onClick={viewOnExplorer}>
+              <Button
+                variant="outline"
+                size="sm"
+                className="gap-1"
+                onClick={viewExplorer}
+              >
                 <ExternalLink className="h-4 w-4" /> View on Explorer
               </Button>
               <Button variant="outline" size="sm" className="gap-1">
@@ -217,10 +265,10 @@ export default function WalletConnect({
             <p className="text-sm">
               Connect your blockchain wallet to securely manage your health records.
             </p>
-            {renderWalletSelector()}
+            {renderSelector()}
           </div>
         )}
       </CardContent>
     </Card>
   );
-}
+                    }
