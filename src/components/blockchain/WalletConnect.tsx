@@ -1,15 +1,15 @@
 // components/WalletConnect.tsx
 import React, { useState, useEffect } from 'react';
-import { Card, CardContent, CardHeader, CardTitle, CardDescription } from '@/components/ui/card';
-import { Button } from '@/components/ui/button';
-import { Badge } from '@/components/ui/badge';
+import {
+  Card, CardContent, CardHeader, CardTitle, CardDescription,
+  Button, Badge, Alert, AlertDescription,
+  Select, SelectContent, SelectItem, SelectTrigger, SelectValue,
+  TooltipProvider
+} from '@/components/ui';
 import { Check, Wallet, UploadCloud, ExternalLink } from 'lucide-react';
 import { WalletInfo, connectWallet, disconnectWallet, WalletType } from '@/utils/walletUtils';
 import { useToast } from '@/hooks/use-toast';
 import { useActivityTracker } from '@/utils/activityTracker';
-import { TooltipProvider } from '@/components/ui/tooltip';
-import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from "@/components/ui/select";
-import { Alert, AlertDescription } from '@/components/ui/alert';
 
 interface WalletConnectProps {
   walletInfo: WalletInfo;
@@ -18,13 +18,13 @@ interface WalletConnectProps {
   className?: string;
 }
 
-type ExtendedWalletType = WalletType | 'walletconnect';
+type ExtendedWalletType = WalletType;
 
-const WalletConnect: React.FC<WalletConnectProps> = ({ 
-  walletInfo, 
-  onWalletConnect, 
-  onWalletDisconnect, 
-  className 
+const WalletConnect: React.FC<WalletConnectProps> = ({
+  walletInfo,
+  onWalletConnect,
+  onWalletDisconnect,
+  className
 }) => {
   const [isConnecting, setIsConnecting] = useState(false);
   const [selectedWalletType, setSelectedWalletType] = useState<ExtendedWalletType>('walletconnect');
@@ -61,11 +61,11 @@ const WalletConnect: React.FC<WalletConnectProps> = ({
   const handleConnectWallet = async () => {
     setIsConnecting(true);
     try {
-      const info = await connectWallet(selectedWalletType as WalletType);
+      const info = await connectWallet(selectedWalletType);
       onWalletConnect(info);
       toast({
         title: 'Wallet Connected',
-        description: `Connected: ${shortenAddress(info.address)}`,
+        description: `Connected: ${shortenAddress(info.address)}`
       });
       trackActivity('connect_wallet', '/blockchain', {
         address: info.address,
@@ -85,7 +85,7 @@ const WalletConnect: React.FC<WalletConnectProps> = ({
   };
 
   const handleDisconnect = async () => {
-    try { await disconnectWallet(); } catch {}
+    await disconnectWallet();
     onWalletDisconnect();
     toast({ title: 'Disconnected', description: 'Wallet disconnected' });
     trackActivity('disconnect_wallet', '/blockchain', {});
@@ -151,4 +151,6 @@ const WalletConnect: React.FC<WalletConnectProps> = ({
               </Badge>
             </div>
 
-            <div className="grid grid-cols-2 gap-2
+            <div className="grid grid-cols-2 gap-2 text-sm">
+              <span className="text-muted-foreground">Network:</span><span className="font-medium">{walletInfo.network}</span>
+              <span className="text-muted-foreground">Balance:</span><span className
