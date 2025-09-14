@@ -11,13 +11,13 @@ import { Button } from "@/components/ui/button";
 import { Input } from "@/components/ui/input";
 import {
   Table,
-  TableBody,
-  TableCell,
-  TableHead,
   TableHeader,
+  TableBody,
   TableRow,
+  TableHead,
+  TableCell,
 } from "@/components/ui/table";
-import { Tabs, TabsContent, TabsList, TabsTrigger } from "@/components/ui/tabs";
+import { Tabs, TabsList, TabsTrigger, TabsContent } from "@/components/ui/tabs";
 import WalletConnect from "@/components/blockchain/WalletConnect";
 import {
   WalletInfo,
@@ -28,16 +28,17 @@ import { useActivityTracker } from "@/utils/activityTracker";
 import { useToast } from "@/hooks/use-toast";
 import { useBlockchain } from "@/hooks/blockchain";
 
-const Blockchain = () => {
-  const [walletInfo, setWalletInfo] = useState<WalletInfo>(defaultWalletInfo);
+const Blockchain: React.FC = () => {
+  const [walletInfo, setWalletInfo] =
+    useState<WalletInfo>(defaultWalletInfo);
   const { trackActivity } = useActivityTracker();
   const { toast } = useToast();
-  const { contract, account } = useBlockchain(); // no network here
+  const { contract, account } = useBlockchain();
   const [name, setName] = useState("");
   const [record, setRecord] = useState("");
   const [records, setRecords] = useState<any[]>([]);
 
-  // Fetch all records
+  // Load records
   const loadRecords = async () => {
     if (!contract) return;
     try {
@@ -57,7 +58,7 @@ const Blockchain = () => {
     }
   };
 
-  // Add new record
+  // Add a new record
   const addRecord = async () => {
     if (!contract) return;
     try {
@@ -80,11 +81,11 @@ const Blockchain = () => {
     }
   };
 
-  // Wallet event listeners + page tracking
+  // Wallet listeners + page analytics
   useEffect(() => {
     trackActivity("view_blockchain");
 
-    const handleAccountsChanged = (accounts: string[]) => {
+    const handleAccounts = (accounts: string[]) => {
       if (accounts.length === 0) {
         setWalletInfo(defaultWalletInfo);
         toast({
@@ -93,34 +94,36 @@ const Blockchain = () => {
         });
       }
     };
-
-    const handleChainChanged = () => window.location.reload();
+    const handleChain = () => window.location.reload();
 
     const cleanup = setupWalletEventListeners(
-      handleAccountsChanged,
-      handleChainChanged
+      handleAccounts,
+      handleChain
     );
-
     return cleanup;
-  }, []);
+  }, [toast, trackActivity]);
 
   return (
     <Layout>
       <div className="flex flex-col gap-6">
         <div>
-          <h1 className="text-3xl font-bold">Blockchain Health Records</h1>
+          <h1 className="text-3xl font-bold">
+            Blockchain Health Records
+          </h1>
           <p className="text-muted-foreground">
             Securely store and verify your health data on blockchain
           </p>
         </div>
 
-        {/* Wallet + Stats */}
+        {/* Wallet & Stats */}
         <div className="grid grid-cols-1 md:grid-cols-3 gap-4">
           <WalletConnect
             className="md:col-span-2"
             walletInfo={walletInfo}
             onWalletConnect={setWalletInfo}
-            onWalletDisconnect={() => setWalletInfo(defaultWalletInfo)}
+            onWalletDisconnect={() =>
+              setWalletInfo(defaultWalletInfo)
+            }
           />
 
           <Card>
@@ -130,13 +133,21 @@ const Blockchain = () => {
             <CardContent>
               <div className="space-y-4">
                 <div>
-                  <p className="text-sm text-muted-foreground">Total Records</p>
-                  <p className="text-2xl font-bold">{records.length}</p>
+                  <p className="text-sm text-muted-foreground">
+                    Total Records
+                  </p>
+                  <p className="text-2xl font-bold">
+                    {records.length}
+                  </p>
                 </div>
                 <div>
-                  <p className="text-sm text-muted-foreground">Network</p>
+                  <p className="text-sm text-muted-foreground">
+                    Network
+                  </p>
                   <p className="text-lg font-medium">
-                    {account ? walletInfo.network : "Not Connected"}
+                    {account
+                      ? walletInfo.network
+                      : "Not Connected"}
                   </p>
                 </div>
               </div>
@@ -147,20 +158,30 @@ const Blockchain = () => {
         {/* Tabs */}
         <Tabs defaultValue="records">
           <TabsList>
-            <TabsTrigger value="records">Health Records</TabsTrigger>
-            <TabsTrigger value="verification">Verification</TabsTrigger>
-            <TabsTrigger value="permissions">Access Permissions</TabsTrigger>
+            <TabsTrigger value="records">
+              Health Records
+            </TabsTrigger>
+            <TabsTrigger value="verification">
+              Verification
+            </TabsTrigger>
+            <TabsTrigger value="permissions">
+              Access Permissions
+            </TabsTrigger>
           </TabsList>
 
-          {/* Records Tab */}
           <TabsContent value="records" className="space-y-4">
             <Card>
               <CardHeader>
-                <CardTitle>My Blockchain Health Records</CardTitle>
+                <CardTitle>
+                  My Blockchain Health Records
+                </CardTitle>
               </CardHeader>
               <CardContent>
                 <div className="flex gap-2 mb-4">
-                  <Button onClick={loadRecords} disabled={!contract}>
+                  <Button
+                    onClick={loadRecords}
+                    disabled={!contract}
+                  >
                     Load Records
                   </Button>
                 </div>
@@ -180,7 +201,7 @@ const Blockchain = () => {
                       </TableRow>
                     </TableHeader>
                     <TableBody>
-                      {records.map((rec: any, idx) => (
+                      {records.map((rec, idx) => (
                         <TableRow key={idx}>
                           <TableCell>{idx + 1}</TableCell>
                           <TableCell>{rec.name}</TableCell>
@@ -198,7 +219,9 @@ const Blockchain = () => {
               <CardHeader>
                 <CardTitle>Add New Health Record</CardTitle>
                 <CardDescription>
-                  Upload and secure new health data to the blockchain
+                  Upload and secure new health data to the
+                  blockchain
+                blockchain
                 </CardDescription>
               </CardHeader>
               <CardContent>
@@ -214,8 +237,13 @@ const Blockchain = () => {
                     onChange={(e) => setRecord(e.target.value)}
                   />
                   <div className="flex justify-end">
-                    <Button onClick={addRecord} disabled={!account}>
-                      {account ? "Submit to Blockchain" : "Connect Wallet First"}
+                    <Button
+                      onClick={addRecord}
+                      disabled={!account}
+                    >
+                      {account
+                        ? "Submit to Blockchain"
+                        : "Connect Wallet First"}
                     </Button>
                   </div>
                 </div>
