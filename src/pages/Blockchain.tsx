@@ -26,15 +26,13 @@ import {
 } from "@/utils/walletUtils";
 import { useActivityTracker } from "@/utils/activityTracker";
 import { useToast } from "@/hooks/use-toast";
-import { useBlockchain } from "@/hooks/blockchain"; // ✅ updated
+import { useBlockchain } from "@/hooks/blockchain";
 
 const Blockchain = () => {
   const [walletInfo, setWalletInfo] = useState<WalletInfo>(defaultWalletInfo);
   const { trackActivity } = useActivityTracker();
   const { toast } = useToast();
-
-  // ✅ Use new hook
-  const { contract, account } = useBlockchain();
+  const { contract, account } = useBlockchain(); // no network here
   const [name, setName] = useState("");
   const [record, setRecord] = useState("");
   const [records, setRecords] = useState<any[]>([]);
@@ -82,7 +80,7 @@ const Blockchain = () => {
     }
   };
 
-  // Track page + wallet listeners
+  // Wallet event listeners + page tracking
   useEffect(() => {
     trackActivity("view_blockchain");
 
@@ -225,7 +223,6 @@ const Blockchain = () => {
             </Card>
           </TabsContent>
 
-          {/* Other Tabs */}
           <TabsContent value="verification">
             <p className="text-muted-foreground">
               Verification feature coming soon...
