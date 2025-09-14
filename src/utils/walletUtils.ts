@@ -1,8 +1,11 @@
-// src/utils/walletUtils.ts
 import WalletConnectProvider from "@walletconnect/web3-provider";
 import Web3 from "web3";
 
-export type WalletType = "metamask" | "coinbase" | "trustwallet" | "walletconnect";
+export type WalletType =
+  | "metamask"
+  | "coinbase"
+  | "trustwallet"
+  | "walletconnect";
 
 export interface WalletInfo {
   address: string;
@@ -14,7 +17,7 @@ export interface WalletInfo {
 }
 
 /**
- * Represents a disconnected wallet state.
+ * Disconnected default state.
  */
 export const defaultWalletInfo: WalletInfo = {
   address: "",
@@ -26,8 +29,8 @@ export const defaultWalletInfo: WalletInfo = {
 };
 
 /**
- * Sets up listeners for injected wallets (e.g. MetaMask).
- * Returns a cleanup function that removes all listeners.
+ * Listen for injected wallet events (accounts/chain changes, disconnect).
+ * Returns a cleanup function.
  */
 export function setupWalletEventListeners(
   onAccountsChanged: (accounts: string[]) => void,
@@ -38,23 +41,17 @@ export function setupWalletEventListeners(
     return () => {};
   }
 
-  const handleAccountsChanged = (accounts: string[]) => {
-    onAccountsChanged(accounts);
-  };
-  const handleChainChanged = () => {
-    onChainChanged();
-  };
-  const handleDisconnect = () => {
-    onAccountsChanged([]);
-  };
+  const handleAccounts = (accounts: string[]) => onAccountsChanged(accounts);
+  const handleChain = () => onChainChanged();
+  const handleDisconnect = () => onAccountsChanged([]);
 
-  eth.on("accountsChanged", handleAccountsChanged);
-  eth.on("chainChanged", handleChainChanged);
+  eth.on("accountsChanged", handleAccounts);
+  eth.on("chainChanged", handleChain);
   eth.on("disconnect", handleDisconnect);
 
   return () => {
-    eth.removeListener("accountsChanged", handleAccountsChanged);
-    eth.removeListener("chainChanged", handleChainChanged);
+    eth.removeListener("accountsChanged", handleAccounts);
+    eth.removeListener("chainChanged", handleChain);
     eth.removeListener("disconnect", handleDisconnect);
   };
 }
@@ -62,68 +59,46 @@ export function setupWalletEventListeners(
 let currentProvider: any = null;
 
 /**
- * Connects to the requested wallet type and returns WalletInfo.
+ * Connect to MetaMask, Coinbase, Trust Wallet (injected),
+ * or WalletConnect (QR modal).
  */
-export async function connectWallet(walletType: WalletType): Promise<WalletInfo> {
+export async function connectWallet(
+  walletType: WalletType
+): Promise<WalletInfo> {
+  // 1) Initialize provider
   if (walletType === "metamask") {
-    if (!(window as any).ethereum) throw new Error("MetaMask not found");
+    if (!(window as any).ethereum) {
+      throw new Error("MetaMask not found");
+    }
     currentProvider = (window as any).ethereum;
     await currentProvider.request({ method: "eth_requestAccounts" });
   }
 
   if (walletType === "coinbase") {
     currentProvider = (window as any).coinbaseWalletExtension;
-    if (!currentProvider) throw new Error("Coinbase Wallet not found");
+    if (!currentProvider) {
+      throw new Error("Coinbase Wallet not found");
+    }
     await currentProvider.request({ method: "eth_requestAccounts" });
   }
 
   if (walletType === "trustwallet") {
     currentProvider = (window as any).trustwallet;
-    if (!currentProvider) throw new Error("Trust Wallet not found");
+    if (!currentProvider) {
+      throw new Error("Trust Wallet not found");
+    }
     await currentProvider.request({ method: "eth_requestAccounts" });
   }
 
   if (walletType === "walletconnect") {
     const wc = new WalletConnectProvider({
-      rpc: { 1: "https://mainnet.infura.io/v3/c4996bc7a2fb4c25b756648d9f850a2d" },
+      rpc: {
+        1: "https://mainnet.infura.io/v3/c4996bc7a2fb4c25b756648d9f850a2d",
+      },
     });
     await wc.enable();
     currentProvider = wc;
-    (window as any).walletConnectProvider = wc; // for disconnect
-  }
-
-  const web3 = new Web3(currentProvider);
-  const accounts = await web3.eth.getAccounts();
-  const chainId = await web3.eth.getChainId();
-  const rawBalance = await web3.eth.getBalance(accounts[0]);
-  const balance = Web3.utils.fromWei(rawBalance, "ether");
-
-  return {
-    address: accounts[0],
-    network: `Chain ${chainId}`,
-    chainId,
-    balance,
-    walletType,
-    isConnected: true,
-  };
-}
-
-/**
- * Disconnects a WalletConnect session if active.
- */
-export async function disconnectWallet(): Promise<void> {
-  try {
-    const wc = (window as any).walletConnectProvider;
-    if (wc?.disconnect) {
-      await wc.disconnect();
-    }
-  } catch (err) {
-    console.warn("Error disconnecting wallet:", err);
-  } finally {
-    currentProvider = null;
-  }
-}    currentProvider = wc;
-    // Expose WalletConnect provider for explicit disconnect
+    // expose for explicit disconnect
     ;(window as any).walletConnectProvider = wc;
   }
 
@@ -145,8 +120,8 @@ export async function disconnectWallet(): Promise<void> {
 }
 
 /**
- * Disconnects WalletConnect sessions cleanly. Other injected wallets
- * automatically lose connection when you clear state.
+ * Disconnect a WalletConnect session cleanly.
+ * Injected wallets auto-drop on page reload / state clear.
  */
 export async function disconnectWallet(): Promise<void> {
   try {
@@ -155,7 +130,7 @@ export async function disconnectWallet(): Promise<void> {
       await wc.disconnect();
     }
   } catch (err) {
-    console.warn("Error disconnecting wallet:", err);
+    console.warn("disconnectWallet error:", err);
   } finally {
     currentProvider = null;
   }
