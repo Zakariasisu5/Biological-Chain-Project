@@ -1,6 +1,6 @@
 // utils/walletUtils.ts
 import { ethers } from "ethers";
-import EthereumProvider from "@walletconnect/ethereum-provider"; // default import
+import EthereumProvider from "@walletconnect/ethereum-provider";
 
 export type WalletType = "metamask" | "coinbase" | "trustwallet" | "walletconnect";
 
@@ -21,37 +21,38 @@ export const defaultWalletInfo: WalletInfo = {
 };
 
 let provider: ethers.BrowserProvider | null = null;
-let wcProvider: any = null; // WalletConnect provider, typed as any to avoid TS issues
 
 /**
  * Connect to a wallet (MetaMask, Coinbase, TrustWallet, WalletConnect)
  */
 export async function connectWallet(walletType: WalletType): Promise<WalletInfo> {
+  let externalProvider: any;
+
   if (walletType === "walletconnect") {
-    // Initialize WalletConnect
-    wcProvider = await EthereumProvider.init({
-      projectId: import.meta.env.VITE_WALLETCONNECT_PROJECT_ID as string, // Set this in your .env
-      chains: [11155111], // Sepolia chain
+    // WalletConnect v2
+    externalProvider = await EthereumProvider.init({
+      projectId: "4f4c596844dd89275d4815534ff37881", // ✅ your WalletConnect projectId
+      chains: [1], // Ethereum Mainnet
       showQrModal: true,
     });
 
-    await wcProvider.enable();
-    provider = new ethers.BrowserProvider(wcProvider as any);
+    await externalProvider.enable();
   } else {
-    // Browser wallets
     if (!window.ethereum) throw new Error(`${walletType} wallet not detected`);
-    provider = new ethers.BrowserProvider(window.ethereum as any);
+    externalProvider = window.ethereum;
+    await externalProvider.request({ method: "eth_requestAccounts" });
   }
 
-  const accounts: string[] = await provider.send("eth_requestAccounts", []);
-  if (!accounts || accounts.length === 0) throw new Error("No accounts found");
+  provider = new ethers.BrowserProvider(externalProvider);
 
+  const signer = await provider.getSigner();
+  const address = await signer.getAddress();
   const network = await provider.getNetwork();
-  const balanceBN = await provider.getBalance(accounts[0]);
+  const balanceBN = await provider.getBalance(address);
 
   return {
     isConnected: true,
-    address: accounts[0],
+    address,
     network: network.name,
     balance: ethers.formatEther(balanceBN),
     walletType,
@@ -59,44 +60,28 @@ export async function connectWallet(walletType: WalletType): Promise<WalletInfo>
 }
 
 /**
- * Disconnect wallet
+ * Disconnect wallet (simply resets provider)
  */
 export async function disconnectWallet(): Promise<void> {
-  if (wcProvider) {
-    await wcProvider.disconnect();
-    wcProvider = null;
-  }
   provider = null;
 }
 
 /**
- * Setup wallet event listeners (account/chain changes)
+ * Setup event listeners for wallet account/chain changes
  */
 export function setupWalletEventListeners(
   onAccountsChanged: (accounts: string[]) => void,
   onChainChanged: () => void
 ) {
-  // Browser wallets
   if (window.ethereum) {
     window.ethereum.on?.("accountsChanged", onAccountsChanged);
     window.ethereum.on?.("chainChanged", onChainChanged);
   }
 
-  // WalletConnect
-  if (wcProvider) {
-    wcProvider.on("accountsChanged", onAccountsChanged);
-    wcProvider.on("chainChanged", onChainChanged);
-  }
-
-  // Return cleanup function
   return () => {
     if (window.ethereum) {
       window.ethereum.removeListener("accountsChanged", onAccountsChanged);
       window.ethereum.removeListener("chainChanged", onChainChanged);
-    }
-    if (wcProvider) {
-      wcProvider.removeListener("accountsChanged", onAccountsChanged);
-      wcProvider.removeListener("chainChanged", onChainChanged);
     }
   };
 }
