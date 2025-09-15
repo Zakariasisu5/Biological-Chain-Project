@@ -17,7 +17,7 @@ export function useWallet() {
     chainId: null,
   });
 
-  // 🔑 Connect MetaMask
+  // 🦊 Connect MetaMask
   const connectMetaMask = useCallback(async () => {
     if (!window.ethereum) {
       alert("MetaMask not installed!");
@@ -25,11 +25,11 @@ export function useWallet() {
     }
 
     try {
-      const accounts: string[] = await window.ethereum.request({
+      const accounts: string[] = await window.ethereum.request?.({
         method: "eth_requestAccounts",
       });
 
-      const provider = new ethers.BrowserProvider(window.ethereum);
+      const provider = new ethers.BrowserProvider(window.ethereum as any);
       const signer = await provider.getSigner();
       const network = await provider.getNetwork();
 
@@ -46,11 +46,11 @@ export function useWallet() {
     }
   }, []);
 
-  // 🔑 Connect WalletConnect
+  // 🔗 Connect WalletConnect
   const connectWalletConnect = useCallback(async () => {
     try {
       const wcProvider = await EthereumProvider.init({
-        projectId: import.meta.env.VITE_WALLETCONNECT_PROJECT_ID, // 👈 set this in .env
+        projectId: import.meta.env.VITE_WALLETCONNECT_PROJECT_ID!,
         chains: [11155111], // Sepolia
         showQrModal: true,
       });
@@ -75,7 +75,7 @@ export function useWallet() {
     }
   }, []);
 
-  // 🌀 Auto-reconnect on page reload
+  // 🌀 Auto-reconnect
   useEffect(() => {
     const lastWallet = localStorage.getItem("lastWallet");
     if (lastWallet === "metamask") {
