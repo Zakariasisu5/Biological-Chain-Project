@@ -1,23 +1,18 @@
 /// <reference types="vite/client" />
 
-import type { Eip1193Provider as BaseEip1193Provider } from "@metamask/providers";
+import type { ExternalProvider } from "@ethersproject/providers";
 
 declare global {
-  /**
-   * Extend the base Eip1193Provider type with optional event methods
-   */
-  interface ExtendedEip1193Provider extends BaseEip1193Provider {
+  interface EthereumProviderWithRequest extends ExternalProvider {
+    isMetaMask?: boolean;
+    isCoinbaseWallet?: boolean;
+    isTrust?: boolean;
+    request: (args: { method: string; params?: unknown[] }) => Promise<any>;
     on?: (event: string, callback: (...args: any[]) => void) => void;
     removeListener?: (event: string, callback: (...args: any[]) => void) => void;
   }
 
   interface Window {
-    ethereum?: ExtendedEip1193Provider & {
-      isMetaMask?: boolean;
-      isCoinbaseWallet?: boolean;
-      isTrust?: boolean;
-    };
+    ethereum?: EthereumProviderWithRequest;
   }
 }
-
-export {};
