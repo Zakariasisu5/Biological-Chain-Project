@@ -9,6 +9,17 @@ interface WalletState {
   chainId: number | null;
 }
 
+declare global {
+  interface Window {
+    ethereum?: {
+      isMetaMask?: boolean;
+      request?: (args: { method: string; params?: unknown[] }) => Promise<any>;
+      on?: (event: string, callback: (...args: any[]) => void) => void;
+      removeListener?: (event: string, callback: (...args: any[]) => void) => void;
+    };
+  }
+}
+
 export function useWallet() {
   const [wallet, setWallet] = useState<WalletState>({
     provider: null,
@@ -49,6 +60,8 @@ export function useWallet() {
   // 🔗 Connect WalletConnect
   const connectWalletConnect = useCallback(async () => {
     try {
+      console.log("WalletConnect project ID:", import.meta.env.VITE_WALLETCONNECT_PROJECT_ID);
+
       const wcProvider = await EthereumProvider.init({
         projectId: import.meta.env.VITE_WALLETCONNECT_PROJECT_ID!,
         chains: [11155111], // Sepolia
