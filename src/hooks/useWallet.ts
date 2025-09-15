@@ -60,11 +60,9 @@ export function useWallet() {
   // 🔗 Connect WalletConnect
   const connectWalletConnect = useCallback(async () => {
     try {
-      console.log("WalletConnect project ID:", import.meta.env.VITE_WALLETCONNECT_PROJECT_ID);
-
       const wcProvider = await EthereumProvider.init({
-        projectId: import.meta.env.VITE_WALLETCONNECT_PROJECT_ID!,
-        chains: [11155111], // Sepolia
+        projectId: "4f4c596844dd89275d4815534ff37881", // ✅ Inserted your WalletConnect Project ID
+        chains: [11155111], // Sepolia testnet (change to 1 for Mainnet if needed)
         showQrModal: true,
       });
 
