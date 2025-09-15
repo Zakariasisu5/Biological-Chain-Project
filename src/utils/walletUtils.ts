@@ -1,5 +1,5 @@
 // utils/walletUtils.ts
-import { ethers } from "ethers";
+import { ethers, type BrowserProvider, type Signer } from "ethers";
 import EthereumProvider from "@walletconnect/ethereum-provider";
 
 export type WalletType = "metamask" | "coinbase" | "trustwallet" | "walletconnect";
@@ -20,39 +20,61 @@ export const defaultWalletInfo: WalletInfo = {
   walletType: "walletconnect",
 };
 
-let provider: ethers.BrowserProvider | null = null;
+let provider: BrowserProvider | null = null;
+
+// 🔑 Hardcode your WalletConnect project ID here
+const WALLETCONNECT_PROJECT_ID = "4f4c596844dd89275d4815534ff37881";
 
 /**
- * Connect to a wallet (MetaMask, Coinbase, TrustWallet, WalletConnect)
+ * Connect wallet (MetaMask, Coinbase, TrustWallet, WalletConnect)
  */
 export async function connectWallet(walletType: WalletType): Promise<WalletInfo> {
-  let externalProvider: any;
-
   if (walletType === "walletconnect") {
-    // WalletConnect v2
-    externalProvider = await EthereumProvider.init({
-      projectId: "4f4c596844dd89275d4815534ff37881", // ✅ your WalletConnect projectId
-      chains: [1], // Ethereum Mainnet
-      showQrModal: true,
-    });
+    try {
+      const wcProvider = await EthereumProvider.init({
+        projectId: WALLETCONNECT_PROJECT_ID,
+        chains: [11155111], // Sepolia
+        showQrModal: true,
+      });
 
-    await externalProvider.enable();
-  } else {
-    if (!window.ethereum) throw new Error(`${walletType} wallet not detected`);
-    externalProvider = window.ethereum;
-    await externalProvider.request({ method: "eth_requestAccounts" });
+      await wcProvider.enable();
+
+      provider = new ethers.BrowserProvider(wcProvider as any);
+      const signer = await provider.getSigner();
+      const address = await signer.getAddress();
+      const network = await provider.getNetwork();
+      const balanceBN = await provider.getBalance(address);
+
+      return {
+        isConnected: true,
+        address,
+        network: network.name,
+        balance: ethers.formatEther(balanceBN),
+        walletType: "walletconnect",
+      };
+    } catch (err: any) {
+      console.error("WalletConnect connection failed:", err);
+      throw new Error(
+        err?.message?.includes("Unauthorized")
+          ? "WalletConnect failed: make sure your production domain is added to the WalletConnect Cloud console."
+          : err?.message || "Failed to connect WalletConnect"
+      );
+    }
   }
 
-  provider = new ethers.BrowserProvider(externalProvider);
+  // Browser wallets (MetaMask, Coinbase, TrustWallet)
+  if (!window.ethereum) throw new Error(`${walletType} wallet not detected`);
 
-  const signer = await provider.getSigner();
-  const address = await signer.getAddress();
+  provider = new ethers.BrowserProvider(window.ethereum as any);
+  const accounts = await provider.send("eth_requestAccounts", []);
+  if (!accounts || accounts.length === 0) throw new Error("No accounts found");
+
   const network = await provider.getNetwork();
-  const balanceBN = await provider.getBalance(address);
+  const balanceBN = await provider.getBalance(accounts[0]);
 
   return {
     isConnected: true,
-    address,
+    address: accounts[0],
     network: network.name,
     balance: ethers.formatEther(balanceBN),
     walletType,
@@ -60,7 +82,7 @@ export async function connectWallet(walletType: WalletType): Promise<WalletInfo>
 }
 
 /**
- * Disconnect wallet (simply resets provider)
+ * Disconnect wallet (resets provider)
  */
 export async function disconnectWallet(): Promise<void> {
   provider = null;
