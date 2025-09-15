@@ -1,5 +1,5 @@
-import { ethers, type Eip1193Provider } from "ethers";
-import EthereumProvider from "@walletconnect/ethereum-provider";
+// utils/walletUtils.ts
+import { ethers } from "ethers";
 
 export type WalletType = "metamask" | "coinbase" | "trustwallet" | "walletconnect";
 
@@ -22,51 +22,13 @@ export const defaultWalletInfo: WalletInfo = {
 let provider: ethers.BrowserProvider | null = null;
 
 /**
- * Extend Eip1193Provider to support event listeners
- */
-interface ExtendedEip1193Provider extends Eip1193Provider {
-  on?: (event: string, callback: (...args: any[]) => void) => void;
-  removeListener?: (event: string, callback: (...args: any[]) => void) => void;
-}
-
-declare global {
-  interface Window {
-    ethereum?: ExtendedEip1193Provider;
-  }
-}
-
-/**
- * Connect to wallet
+ * Connect to a wallet (MetaMask, Coinbase, TrustWallet, WalletConnect)
  */
 export async function connectWallet(walletType: WalletType): Promise<WalletInfo> {
-  if (walletType === "walletconnect") {
-    // 🔑 WalletConnect provider
-    const wcProvider = await EthereumProvider.init({
-      projectId: import.meta.env.VITE_WALLETCONNECT_PROJECT_ID, // must be set in Vercel
-      chains: [11155111], // Sepolia testnet
-      showQrModal: true,
-    });
-
-    await wcProvider.enable();
-    provider = new ethers.BrowserProvider(wcProvider as unknown as Eip1193Provider);
-
-    const signer = await provider.getSigner();
-    const address = await signer.getAddress();
-    const network = await provider.getNetwork();
-    const balanceBN = await provider.getBalance(address);
-
-    return {
-      isConnected: true,
-      address,
-      network: network.name,
-      balance: ethers.formatEther(balanceBN),
-      walletType: "walletconnect",
-    };
-  }
-
-  // 🔑 Browser wallets (MetaMask, Coinbase, TrustWallet)
   if (!window.ethereum) throw new Error(`${walletType} wallet not detected`);
-  provider = new ethers.BrowserProvider(window.ethereum);
+
+  // Cast to any to satisfy ethers v6 typing
+  provider = new ethers.BrowserProvider(window.ethereum as any);
 
   const accounts = await provider.send("eth_requestAccounts", []);
   if (!accounts || accounts.length === 0) throw new Error("No accounts found");
@@ -84,14 +46,14 @@ export async function connectWallet(walletType: WalletType): Promise<WalletInfo>
 }
 
 /**
- * Disconnect wallet (just resets provider)
+ * Disconnect wallet (simply resets provider)
  */
 export async function disconnectWallet(): Promise<void> {
   provider = null;
 }
 
 /**
- * Setup wallet event listeners
+ * Setup event listeners for wallet account/chain changes
  */
 export function setupWalletEventListeners(
   onAccountsChanged: (accounts: string[]) => void,
@@ -104,8 +66,8 @@ export function setupWalletEventListeners(
 
   return () => {
     if (window.ethereum) {
-      window.ethereum?.removeListener?.("accountsChanged", onAccountsChanged);
-      window.ethereum?.removeListener?.("chainChanged", onChainChanged);
+      window.ethereum.removeListener("accountsChanged", onAccountsChanged);
+      window.ethereum.removeListener("chainChanged", onChainChanged);
     }
   };
 }
