@@ -60,8 +60,12 @@ export function useWallet() {
   // 🔗 Connect WalletConnect
   const connectWalletConnect = useCallback(async () => {
     try {
+      // prefer Vite env var VITE_WALLETCONNECT_PROJECT_ID if available
+      // eslint-disable-next-line @typescript-eslint/no-explicit-any
+      const env = typeof import.meta !== 'undefined' ? (import.meta as any).env : (process.env as any);
+      const projectId = env.VITE_WALLETCONNECT_PROJECT_ID || env.WALLETCONNECT_PROJECT_ID || '4f4c596844dd89275d4815534ff37881';
       const wcProvider = await EthereumProvider.init({
-        projectId: "4f4c596844dd89275d4815534ff37881", // ✅ Inserted your WalletConnect Project ID
+        projectId,
         chains: [11155111], // Sepolia testnet (change to 1 for Mainnet if needed)
         showQrModal: true,
       });

@@ -22,8 +22,10 @@ export const defaultWalletInfo: WalletInfo = {
 
 let provider: BrowserProvider | null = null;
 
-// 🔑 Hardcode your WalletConnect project ID here
-const WALLETCONNECT_PROJECT_ID = "4f4c596844dd89275d4815534ff37881";
+// WalletConnect Project ID - prefer Vite env variable, fallback to hardcoded (replace in production)
+// eslint-disable-next-line @typescript-eslint/no-explicit-any
+const env = typeof import.meta !== 'undefined' ? (import.meta as any).env : (process.env as any);
+const WALLETCONNECT_PROJECT_ID = env.VITE_WALLETCONNECT_PROJECT_ID || env.WALLETCONNECT_PROJECT_ID || "4f4c596844dd89275d4815534ff37881";
 
 /**
  * Connect wallet (MetaMask, Coinbase, TrustWallet, WalletConnect)

@@ -1,5 +1,6 @@
 import { useState } from "react";
 import { useBlockchain } from "@/hooks/blockchain";
+import { addRecordOnChain } from '@/integrations/medicalContract';
 
 export default function MedicalForm() {
   const { contract, account } = useBlockchain(); // Updated hook
@@ -26,15 +27,21 @@ export default function MedicalForm() {
       setLoading(true);
       setMessage("Submitting to blockchain... ⏳");
 
-      const tx = await contract.addRecord(patient, data); // Call contract function
-      await tx.wait(); // Wait for transaction confirmation
+      // Use addRecordOnChain helper so ABI/signature matches the deployed contract
+      // We treat `data` as the CID if it looks like a CID, otherwise store as meta
+      const isCid = data && data.length > 0 && /^(Qm|bafy)/.test(data);
+      const cid = isCid ? data : "";
+      const meta = isCid ? "" : data;
+
+      const tx = await addRecordOnChain(patient, cid || meta, isCid ? 'document' : 'text', isCid ? (meta || '') : meta);
+      await tx.wait();
 
       setMessage("✅ Record successfully added!");
       setPatient("");
       setData("");
     } catch (err: any) {
       console.error(err);
-      setMessage("❌ Failed to add record: " + (err.message || err));
+      setMessage("❌ Failed to add record: " + (err?.message || String(err)));
     } finally {
       setLoading(false);
     }

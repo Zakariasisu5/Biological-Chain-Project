@@ -6,9 +6,13 @@ import { Web3Storage } from "web3.storage";
  * Make sure you set NEXT_PUBLIC_WEB3_STORAGE_TOKEN in your .env.local file
  */
 function makeStorageClient() {
-  const token = process.env.NEXT_PUBLIC_WEB3_STORAGE_TOKEN;
+  // Vite exposes env via import.meta.env. Support both Vite and Next-style names as a fallback.
+  // Prefer VITE_WEB3_STORAGE_TOKEN for Vite projects.
+  // eslint-disable-next-line @typescript-eslint/no-explicit-any
+  const env = (typeof import.meta !== 'undefined' ? (import.meta as any).env : {}) || {};
+  const token = env.VITE_WEB3_STORAGE_TOKEN || process.env.NEXT_PUBLIC_WEB3_STORAGE_TOKEN || process.env.VITE_WEB3_STORAGE_TOKEN;
   if (!token) {
-    throw new Error("Missing Web3.Storage API token. Add NEXT_PUBLIC_WEB3_STORAGE_TOKEN to your .env.local file.");
+    throw new Error("Missing Web3.Storage API token. Set VITE_WEB3_STORAGE_TOKEN in your .env file (or NEXT_PUBLIC_WEB3_STORAGE_TOKEN as a fallback).");
   }
   return new Web3Storage({ token });
 }
