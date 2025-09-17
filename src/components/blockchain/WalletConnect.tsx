@@ -4,30 +4,56 @@ import { Card, CardContent, CardHeader, CardTitle, CardDescription } from "@/com
 import { Button } from "@/components/ui/button";
 import { Badge } from "@/components/ui/badge";
 import { Check, Wallet, ExternalLink } from "lucide-react";
-import { WalletInfo, connectWallet, disconnectWallet, WalletType } from "@/utils/walletUtils";
+import { WalletInfo, connectWallet, disconnectWallet, WalletType, getWalletConnectDisplayUri } from "@/utils/walletUtils";
 import { useToast } from "@/hooks/use-toast";
 
 interface WalletConnectProps {
   walletInfo: WalletInfo;
   onWalletConnect: (info: WalletInfo) => void;
   onWalletDisconnect: () => void;
+  className?: string;
 }
 
-const WalletConnect: React.FC<WalletConnectProps> = ({ walletInfo, onWalletConnect, onWalletDisconnect }) => {
+const WalletConnect: React.FC<WalletConnectProps> = ({ walletInfo, onWalletConnect, onWalletDisconnect, className }) => {
   const [isConnecting, setIsConnecting] = useState(false);
   const [selectedWallet, setSelectedWallet] = useState<WalletType>("walletconnect");
+  const [displayUri, setDisplayUri] = useState<string | null>(null);
   const { toast } = useToast();
 
   const handleConnect = async () => {
+    let mounted = true;
     setIsConnecting(true);
     try {
       const info = await connectWallet(selectedWallet);
-      onWalletConnect(info);
-      toast({ title: "Wallet Connected", description: info.address });
+      // try to read displayUri for WalletConnect (web fallback / QR)
+      try {
+        const d = getWalletConnectDisplayUri();
+        setDisplayUri(d);
+      } catch (e) {}
+      if (mounted) {
+        onWalletConnect(info);
+        toast({ title: "Wallet Connected", description: info.address });
+      }
     } catch (err: any) {
-      toast({ title: "Connection Failed", description: err.message, variant: "destructive" });
+      // Provide a clearer message when mobile deep-linking isn't handled by the device/browser
+      const msg = String(err?.message || err || 'Failed to connect');
+      // If the WalletConnect proposal expired, clear provider to allow a fresh re-init
+      if (msg.toLowerCase().includes('proposal expired')) {
+        try { await disconnectWallet(); } catch (e) {}
+        setDisplayUri(null);
+        toast({ title: 'Connection Failed', description: 'WalletConnect proposal expired. Please try connecting again (open wallet app or scan QR).', variant: 'destructive' });
+        return;
+      }
+
+      if (msg.includes('scheme does not have a registered handler') || msg.includes('No handler')) {
+        // show a helpful toast and leave QR/fallback available in UI
+        toast({ title: 'Open Wallet App', description: 'Your browser could not open the wallet app link. Use the QR or Open in Wallet button below.', variant: 'destructive' });
+      } else {
+        toast({ title: "Connection Failed", description: msg, variant: "destructive" });
+      }
     } finally {
-      setIsConnecting(false);
+      if (mounted) setIsConnecting(false);
+      mounted = false;
     }
   };
 
@@ -40,7 +66,7 @@ const WalletConnect: React.FC<WalletConnectProps> = ({ walletInfo, onWalletConne
   const shortenAddress = (addr: string) => `${addr.slice(0, 6)}...${addr.slice(-4)}`;
 
   return (
-    <Card>
+  <Card className={className}>
       <CardHeader>
         <CardTitle>Wallet Connection</CardTitle>
         <CardDescription>Connect your wallet to manage health records</CardDescription>
@@ -67,13 +93,27 @@ const WalletConnect: React.FC<WalletConnectProps> = ({ walletInfo, onWalletConne
           </>
         ) : (
           <>
-            <div className="flex gap-2">
-              <Button onClick={() => setSelectedWallet("metamask")}>MetaMask</Button>
-              <Button onClick={() => setSelectedWallet("walletconnect")}>WalletConnect</Button>
+            <div className="space-y-2">
+             
+              <Button className="mt-2" onClick={handleConnect} disabled={isConnecting}>
+                {isConnecting ? "Connecting..." : "Connect Wallet"}
+              </Button>
+
+              {/* If we have a WalletConnect display URI, show Open in Wallet / Web fallback options */}
+              {displayUri && (
+                <div className="flex gap-2 mt-2">
+                  <Button size="sm" variant="ghost" onClick={() => {
+                    // try deep link using a generic metamask scheme first
+                    const deep = `metamask://wc?uri=${encodeURIComponent(displayUri)}`;
+                    window.open(deep, '_blank');
+                  }}>Open in Wallet App</Button>
+                  <Button size="sm" variant="ghost" onClick={() => {
+                    const web = `https://walletconnect.com/wc?uri=${encodeURIComponent(displayUri)}`;
+                    window.open(web, '_blank');
+                  }}>Open WalletConnect Web</Button>
+                </div>
+              )}
             </div>
-            <Button className="mt-2" onClick={handleConnect} disabled={isConnecting}>
-              {isConnecting ? "Connecting..." : "Connect Wallet"}
-            </Button>
           </>
         )}
       </CardContent>

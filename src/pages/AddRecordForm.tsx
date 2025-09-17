@@ -24,7 +24,8 @@ export default function AddRecordForm() {
     setMessage("");
 
     try {
-      const tx = await contract.addRecord(patient, description); // call your contract method
+      // contract.addRecord(patientAddress, cidOrText, fileType, meta)
+      const tx = await contract.addRecord(account || patient, description, "text", "web-form");
       await tx.wait(); // wait for confirmation
       setMessage(`✅ Record added! Tx Hash: ${tx.hash}`);
       setPatient("");

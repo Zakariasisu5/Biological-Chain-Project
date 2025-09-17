@@ -15,7 +15,8 @@ export default function MedicalRecordsPage() {
     if (!contract) return alert("Contract not loaded");
     try {
       setLoading(true);
-      const tx = await contract.addRecord(patient, diagnosis, treatment);
+      const patientAddress = patient || account;
+      const tx = await contract.addRecord(patientAddress, diagnosis, "text", treatment);
       await tx.wait();
       alert("Record added successfully!");
     } catch (err) {
@@ -28,12 +29,13 @@ export default function MedicalRecordsPage() {
 
   // Fetch all records
   const fetchRecords = async () => {
-    if (!contract) return alert("Contract not loaded");
+    if (!contract || !account) return alert("Contract not loaded or account missing");
     try {
-      const count = await contract.getRecordCount();
+      const countBN = await contract.getRecordCount(account);
+      const count = Number(countBN);
       const fetched: any[] = [];
       for (let i = 0; i < count; i++) {
-        const record = await contract.records(i);
+        const record = await contract.getRecord(account, i);
         fetched.push(record);
       }
       setRecords(fetched);

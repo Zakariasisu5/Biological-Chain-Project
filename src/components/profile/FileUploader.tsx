@@ -31,7 +31,7 @@ export function FileUploader({
   } = useLocalFileUpload({
     type,
     maxSizeMB,
-    onUploadComplete,
+    // do not forward onUploadComplete here to avoid calling parent early with localId
   });
 
   // Upload flow: persist locally, then upload to web3.storage and call onUploadComplete(cid, localId)
@@ -47,6 +47,7 @@ export function FileUploader({
       const cid = await uploadFileToWeb3Storage(fileRef);
 
       // Store mapping cid -> localId in localStorage for local rendering
+      let localId: string | undefined;
       try {
         const raw = localStorage.getItem("bcp_cid_map") || "{}";
         const map = JSON.parse(raw);
@@ -55,7 +56,7 @@ export function FileUploader({
           localStorage.getItem("bcp_uploads") || "[]"
         ) as any[];
         const maybeLocal = saved.find((s: any) => s.name === fileRef.name);
-        const localId = maybeLocal?.id;
+        localId = maybeLocal?.id;
 
         map[cid] = localId || null;
         localStorage.setItem("bcp_cid_map", JSON.stringify(map));
@@ -63,7 +64,7 @@ export function FileUploader({
         console.warn("cid map write failed", e);
       }
 
-      onUploadComplete?.(cid, undefined);
+  onUploadComplete?.(cid, localId);
     } catch (err) {
       console.error("IPFS upload failed", err);
       // optionally surface error via hook or toast

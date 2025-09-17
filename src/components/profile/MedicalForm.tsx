@@ -25,7 +25,8 @@ const MedicalForm: React.FC<MedicalFormProps> = ({ contract, account, onRecordAd
     }
     try {
       setLoading(true);
-      const tx = await contract.addRecord(patient, diagnosis, treatment);
+      const patientAddress = patient || account;
+      const tx = await contract.addRecord(patientAddress, diagnosis, "text", treatment);
       await tx.wait();
       toast({ title: "Record Added", description: "Successfully stored on blockchain" });
       setPatient(""); setDiagnosis(""); setTreatment("");

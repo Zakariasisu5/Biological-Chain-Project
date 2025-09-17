@@ -21,6 +21,7 @@ export const defaultWalletInfo: WalletInfo = {
 };
 
 let provider: BrowserProvider | null = null;
+let wcProviderRef: any = null;
 
 // WalletConnect Project ID - prefer Vite env variable, fallback to hardcoded (replace in production)
 // eslint-disable-next-line @typescript-eslint/no-explicit-any
@@ -33,15 +34,51 @@ const WALLETCONNECT_PROJECT_ID = env.VITE_WALLETCONNECT_PROJECT_ID || env.WALLET
 export async function connectWallet(walletType: WalletType): Promise<WalletInfo> {
   if (walletType === "walletconnect") {
     try {
-      const wcProvider = await EthereumProvider.init({
-        projectId: WALLETCONNECT_PROJECT_ID,
-        chains: [11155111], // Sepolia
-        showQrModal: true,
-      });
+      // If we already have an active WalletConnect provider, reuse it instead of init-ing again.
+      if (wcProviderRef) {
+        try {
+          // Try to enable existing session (may be no-op if already connected)
+          // eslint-disable-next-line @typescript-eslint/no-explicit-any
+          await (wcProviderRef as any).enable?.();
+        } catch (e) {
+          // ignore enable errors here; we'll attempt re-init below if needed
+        }
+      }
 
-      await wcProvider.enable();
+      // If no provider ref exists, initialize and attach listeners
+      if (!wcProviderRef) {
+        const wcProvider = await EthereumProvider.init({
+          projectId: WALLETCONNECT_PROJECT_ID,
+          chains: [11155111], // Sepolia
+          // disable provider's built-in QR / deep-link UI so we can render our own fallback/QR
+          showQrModal: false,
+        });
 
-      provider = new ethers.BrowserProvider(wcProvider as any);
+        // keep a reference early so event handlers can assign displayUri
+        wcProviderRef = wcProvider;
+
+        // listen for provider display URI events (different provider versions use different event names)
+        try {
+          if (typeof wcProvider.on === 'function') {
+            // common event name
+            wcProvider.on('display_uri', (uri: string) => {
+              try { (wcProviderRef as any).displayUri = uri; } catch (e) {}
+            });
+            // alternate event name
+            wcProvider.on('displayUri', (uri: string) => {
+              try { (wcProviderRef as any).displayUri = uri; } catch (e) {}
+            });
+          }
+        } catch (e) {
+          // ignore
+        }
+      }
+
+      // Enable session (this will trigger the proposal flow if not already connected)
+      // eslint-disable-next-line @typescript-eslint/no-explicit-any
+      await (wcProviderRef as any).enable();
+
+      provider = new ethers.BrowserProvider(wcProviderRef as any);
       const signer = await provider.getSigner();
       const address = await signer.getAddress();
       const network = await provider.getNetwork();
@@ -56,6 +93,10 @@ export async function connectWallet(walletType: WalletType): Promise<WalletInfo>
       };
     } catch (err: any) {
       console.error("WalletConnect connection failed:", err);
+      // Surface a clearer message for common WalletConnect errors
+      if (String(err?.message || err).toLowerCase().includes('proposal expired')) {
+        throw new Error('WalletConnect proposal expired — try reconnecting or refresh the page.');
+      }
       throw new Error(
         err?.message?.includes("Unauthorized")
           ? "WalletConnect failed: make sure your production domain is added to the WalletConnect Cloud console."
@@ -87,7 +128,37 @@ export async function connectWallet(walletType: WalletType): Promise<WalletInfo>
  * Disconnect wallet (resets provider)
  */
 export async function disconnectWallet(): Promise<void> {
+  // If a WalletConnect provider is active, disconnect it cleanly
+  try {
+    if (wcProviderRef && typeof wcProviderRef.disconnect === 'function') {
+      await wcProviderRef.disconnect();
+    }
+  } catch (e) {
+    // ignore
+    console.warn('Error disconnecting WalletConnect provider', e);
+  }
+  wcProviderRef = null;
   provider = null;
+}
+
+// Expose provider for other hooks/components to reuse the same BrowserProvider instance
+export function getProvider(): BrowserProvider | null {
+  return provider;
+}
+
+/**
+ * Return WalletConnect display URI if set by the provider. This can be used to build a web fallback
+ * or deep link for mobile wallets when automatic deep-linking fails.
+ */
+export function getWalletConnectDisplayUri(): string | null {
+  try {
+    if (wcProviderRef && (wcProviderRef as any).displayUri) {
+      return (wcProviderRef as any).displayUri as string;
+    }
+  } catch (e) {
+    // ignore
+  }
+  return null;
 }
 
 /**

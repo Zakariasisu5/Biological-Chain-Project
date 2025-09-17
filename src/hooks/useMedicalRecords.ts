@@ -32,23 +32,39 @@ export function useMedicalRecords() {
   }, []);
 
   // Add record
+  // Add record
+  // Old UI passed (name, record). The contract now expects (patientAddress, cid, fileType, meta).
+  // We keep the old signature but map `name` -> meta and `record` -> content, using the connected account
+  // as the patient address (grouping per-address on-chain).
   const addRecord = async (name: string, record: string) => {
-    if (!contract) return;
-    const tx = await contract.addRecord(name, record);
+    if (!contract || !account) return;
+    // Use connected account as patient address
+    const patientAddress = account;
+    const cidOrText = record;
+    const fileType = "text";
+    const meta = name || "";
+    const tx = await contract.addRecord(patientAddress, cidOrText, fileType, meta);
     await tx.wait();
     console.log("Record added:", tx.hash);
   };
 
-  // Get record by ID
-  const getRecord = async (id: number) => {
-    if (!contract) return null;
-    return await contract.getRecord(id);
+  // Get record by index for the connected account
+  const getRecord = async (index: number) => {
+    if (!contract || !account) return null;
+    return await contract.getRecord(account, index);
   };
 
-  // Get all records
+  // Get all records for the connected account
   const getAllRecords = async () => {
-    if (!contract) return [];
-    return await contract.getAllRecords();
+    if (!contract || !account) return [];
+    const countBN = await contract.getRecordCount(account);
+    const count = Number(countBN);
+    const out: any[] = [];
+    for (let i = 0; i < count; i++) {
+      const rec = await contract.getRecord(account, i);
+      out.push(rec);
+    }
+    return out;
   };
 
   return { provider, signer, contract, account, addRecord, getRecord, getAllRecords };

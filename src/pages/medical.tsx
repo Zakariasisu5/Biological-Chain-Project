@@ -1,9 +1,10 @@
 // pages/medical.tsx
 import { useState } from "react";
 import { useMedicalRecords } from "@/hooks/useMedicalRecords";
+import { fetchRecords } from "@/integrations/medicalContract";
 
 export default function MedicalPage() {
-  const { contract, account } = useMedicalRecords();
+  const { contract, account, addRecord: addRecordHelper } = useMedicalRecords();
   const [patientId, setPatientId] = useState("");
   const [record, setRecord] = useState("");
   const [records, setRecords] = useState<string[]>([]);
@@ -11,8 +12,8 @@ export default function MedicalPage() {
   const addRecord = async () => {
     if (!contract) return alert("Contract not ready");
     try {
-      const tx = await contract.addRecord(patientId, record);
-      await tx.wait();
+      // Use the helper which maps the old UI shape to the new contract signature
+      await addRecordHelper(patientId, record);
       alert("Record added successfully!");
     } catch (err) {
       console.error(err);
@@ -22,8 +23,8 @@ export default function MedicalPage() {
   const loadRecords = async () => {
     if (!contract) return alert("Contract not ready");
     try {
-      const result = await contract.getRecords(patientId);
-      setRecords(result);
+      const result = await fetchRecords(patientId);
+      setRecords(result.map((r: any) => `${r.cid} (${r.fileType})`));
     } catch (err) {
       console.error(err);
     }

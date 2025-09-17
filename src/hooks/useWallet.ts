@@ -1,6 +1,6 @@
 import { useState, useEffect, useCallback } from "react";
 import { ethers } from "ethers";
-import EthereumProvider from "@walletconnect/ethereum-provider";
+import { connectWallet as connectWalletUtil, getProvider } from '@/utils/walletUtils';
 
 interface WalletState {
   provider: ethers.BrowserProvider | null;
@@ -60,31 +60,27 @@ export function useWallet() {
   // 🔗 Connect WalletConnect
   const connectWalletConnect = useCallback(async () => {
     try {
-      // prefer Vite env var VITE_WALLETCONNECT_PROJECT_ID if available
-      // eslint-disable-next-line @typescript-eslint/no-explicit-any
-      const env = typeof import.meta !== 'undefined' ? (import.meta as any).env : (process.env as any);
-      const projectId = env.VITE_WALLETCONNECT_PROJECT_ID || env.WALLETCONNECT_PROJECT_ID || '4f4c596844dd89275d4815534ff37881';
-      const wcProvider = await EthereumProvider.init({
-        projectId,
-        chains: [11155111], // Sepolia testnet (change to 1 for Mainnet if needed)
-        showQrModal: true,
-      });
+      const info = await connectWalletUtil('walletconnect');
+      // Build a BrowserProvider and signer from the injected provider stored in walletUtils
+      if (info && info.address) {
+        // Reuse the provider constructed by walletUtils to avoid mismatched instances
+        const sharedProvider = getProvider();
+        let providerObj = sharedProvider;
+        if (!providerObj) {
+          // fallback to constructing from global ethereum if getProvider isn't set for some reason
+          providerObj = new ethers.BrowserProvider((window as any).ethereum as any);
+        }
+        const signer = await providerObj.getSigner();
+        const network = await providerObj.getNetwork();
 
-      await wcProvider.enable();
-
-      const provider = new ethers.BrowserProvider(wcProvider as any);
-      const signer = await provider.getSigner();
-      const account = await signer.getAddress();
-      const network = await provider.getNetwork();
-
-      setWallet({
-        provider,
-        signer,
-        account,
-        chainId: Number(network.chainId),
-      });
-
-      localStorage.setItem("lastWallet", "walletconnect");
+        setWallet({
+          provider: providerObj,
+          signer,
+          account: info.address,
+          chainId: Number(network.chainId),
+        });
+        localStorage.setItem("lastWallet", "walletconnect");
+      }
     } catch (err) {
       console.error("WalletConnect connection failed:", err);
     }

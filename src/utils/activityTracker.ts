@@ -30,6 +30,15 @@ function isValidUUID(id: string): boolean {
   return uuidRegex.test(id);
 }
 
+// Accept either a canonical UUID or an Ethereum address (0x prefixed 40 hex chars)
+function isValidUserId(id: string): boolean {
+  if (!id) return false;
+  const isUUID = isValidUUID(id);
+  const ethRegex = /^0x[a-fA-F0-9]{40}$/;
+  const isEth = ethRegex.test(id);
+  return isUUID || isEth;
+}
+
 // Define the logUserActivity function first
 export const logUserActivity = async (
   userId: string,
@@ -39,7 +48,7 @@ export const logUserActivity = async (
 ) => {
   try {
     // Validate userId format to avoid SQL errors
-    if (!userId || !isValidUUID(userId)) {
+    if (!userId || !isValidUserId(userId)) {
       console.error('Invalid user ID format for activity logging');
       return; // Skip logging if invalid ID
     }

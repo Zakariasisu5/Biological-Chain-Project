@@ -45,8 +45,28 @@ export async function revokeAccessOnChain(providerAddress: string) {
 
 export async function fetchRecords(patientAddress: string) {
   const { provider } = await getProviderAndSigner();
+
+  // Quick sanity: ensure there's code at the contract address
+  try {
+    const code = await provider.getCode(CONTRACT_ADDRESS);
+    if (!code || code === '0x') {
+      // No contract deployed at address: return empty list instead of failing to decode
+      console.warn(`No contract code found at ${CONTRACT_ADDRESS}`);
+      return [];
+    }
+  } catch (e) {
+    console.warn('getCode failed', e);
+  }
+
   const contract = new ethers.Contract(CONTRACT_ADDRESS, CONTRACT_ABI, provider);
-  const countBN = await contract.getRecordCount(patientAddress);
+  let countBN: any;
+  try {
+    countBN = await contract.getRecordCount(patientAddress);
+  } catch (err: any) {
+    // BAD_DATA typically means the call returned empty (no contract / wrong chain)
+    const msg = err?.message || String(err);
+    throw new Error(`Failed to read record count: ${msg}`);
+  }
   const count = Number(countBN);
   const out: Array<{ cid: string; fileType: string; meta: string; timestamp: number; addedBy: string }> = [];
   for (let i = 0; i < count; i++) {

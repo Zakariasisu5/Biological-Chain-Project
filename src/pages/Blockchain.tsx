@@ -60,9 +60,10 @@ const Blockchain: React.FC = () => {
 
   // Add a new record
   const addRecord = async () => {
-    if (!contract) return;
+    if (!contract || !account) return;
     try {
-      const tx = await contract.addRecord(name, record);
+      // contract.addRecord(patientAddress, cidOrText, fileType, meta)
+      const tx = await contract.addRecord(account, record, "text", name);
       await tx.wait();
       toast({
         title: "Record Added",
@@ -117,14 +118,13 @@ const Blockchain: React.FC = () => {
 
         {/* Wallet & Stats */}
         <div className="grid grid-cols-1 md:grid-cols-3 gap-4">
-          <WalletConnect
-            className="md:col-span-2"
-            walletInfo={walletInfo}
-            onWalletConnect={setWalletInfo}
-            onWalletDisconnect={() =>
-              setWalletInfo(defaultWalletInfo)
-            }
-          />
+          <div className="md:col-span-2">
+            <WalletConnect
+              walletInfo={walletInfo}
+              onWalletConnect={(info) => setWalletInfo(info)}
+              onWalletDisconnect={() => setWalletInfo(defaultWalletInfo)}
+            />
+          </div>
 
           <Card>
             <CardHeader>

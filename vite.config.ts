@@ -12,7 +12,8 @@ const __dirname = path.dirname(__filename);
 export default defineConfig(({ mode }) => ({
   server: {
     host: "::",
-    port: 8080,
+    // Allow overriding the dev port via VITE_DEV_PORT env var. Default to 3000 to avoid common conflicts.
+    port: Number(process.env.VITE_DEV_PORT) || 3000,
   },
   plugins: [
     react(),
