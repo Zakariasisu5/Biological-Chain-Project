@@ -47,11 +47,20 @@ export async function connectWallet(walletType: WalletType): Promise<WalletInfo>
 
       // If no provider ref exists, initialize and attach listeners
       if (!wcProviderRef) {
+        // Provide wallet metadata to WalletConnect Cloud for better UX in production
+        const metadata = {
+          name: (typeof document !== 'undefined' && document.title) ? document.title : 'Biologic Chain DApp',
+          description: 'Connect your wallet to Biologic Chain',
+          url: (typeof window !== 'undefined' && window.location ? window.location.origin : 'https://example.com'),
+          icons: [] as string[],
+        };
+
         const wcProvider = await EthereumProvider.init({
           projectId: WALLETCONNECT_PROJECT_ID,
           chains: [11155111], // Sepolia
           // disable provider's built-in QR / deep-link UI so we can render our own fallback/QR
           showQrModal: false,
+          metadata,
         });
 
         // keep a reference early so event handlers can assign displayUri
@@ -76,7 +85,36 @@ export async function connectWallet(walletType: WalletType): Promise<WalletInfo>
 
       // Enable session (this will trigger the proposal flow if not already connected)
       // eslint-disable-next-line @typescript-eslint/no-explicit-any
-      await (wcProviderRef as any).enable();
+      const enableWithRetries = async (attempts = 2) => {
+        let lastErr: any = null;
+        for (let i = 0; i < attempts; i++) {
+          try {
+            await (wcProviderRef as any).enable();
+            return;
+          } catch (e: any) {
+            lastErr = e;
+            // small delay before retry
+            await new Promise((res) => setTimeout(res, 250));
+          }
+        }
+        throw lastErr;
+      };
+
+      try {
+        await enableWithRetries(2);
+      } catch (enableErr: any) {
+        const msg = String(enableErr?.message || enableErr || 'Failed to enable WalletConnect');
+        // Specific WalletConnect Cloud relay error seen in production
+        if (msg.includes('Failed to publish custom payload')) {
+          // Reset provider so next attempt starts fresh
+          try { (wcProviderRef as any).disconnect?.(); } catch (e) {}
+          wcProviderRef = null;
+          provider = null;
+          console.error('WalletConnect publish error:', enableErr);
+          throw new Error('WalletConnect relay error: Failed to publish payload. Try again in a moment or check your WalletConnect Cloud project configuration.');
+        }
+        throw enableErr;
+      }
 
       provider = new ethers.BrowserProvider(wcProviderRef as any);
       const signer = await provider.getSigner();
