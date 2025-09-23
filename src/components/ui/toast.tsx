@@ -30,6 +30,7 @@ const toastVariants = cva(
         default: "border bg-background text-foreground",
         destructive:
           "destructive group border-destructive bg-destructive text-destructive-foreground",
+        success: "group border-green-200 bg-green-50 text-green-900",
       },
     },
     defaultVariants: {
@@ -110,12 +111,16 @@ const ToastDescription = React.forwardRef<
 ))
 ToastDescription.displayName = ToastPrimitives.Description.displayName
 
-type ToastProps = React.ComponentPropsWithoutRef<typeof Toast>
+export type ToastVariant = 'default' | 'destructive' | 'success'
+
+type ToastPropsBase = React.ComponentPropsWithoutRef<typeof Toast>
+// Ensure the exported ToastProps allows our custom 'success' variant while
+// preserving other native props from the Radix Toast root component.
+export type UIToastProps = Omit<ToastPropsBase, 'variant'> & { variant?: ToastVariant }
 
 type ToastActionElement = React.ReactElement<typeof ToastAction>
 
 export {
-  type ToastProps,
   type ToastActionElement,
   ToastProvider,
   ToastViewport,

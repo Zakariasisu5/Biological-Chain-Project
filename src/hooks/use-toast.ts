@@ -2,7 +2,7 @@ import * as React from "react"
 
 import type {
   ToastActionElement,
-  ToastProps,
+  UIToastProps as ToastProps,
 } from "@/components/ui/toast"
 
 const TOAST_LIMIT = 1

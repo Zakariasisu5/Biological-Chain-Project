@@ -1,7 +1,7 @@
 
 import React, { useState, useEffect } from 'react';
 import { useQuery } from '@tanstack/react-query';
-import { supabase } from '@/integrations/supabase/client';
+import { getFirestoreClient } from '@/integrations/firebase/client';
 import Layout from '@/components/layout/Layout';
 import { useAuth } from '@/contexts/AuthContext';
 import { useToast } from '@/components/ui/use-toast';
@@ -59,27 +59,31 @@ const UserActivities = () => {
     queryKey: ['userActivities', currentUser?.id, filter, searchTerm],
     queryFn: async () => {
       if (!currentUser?.id) return [];
-      
-      let query = supabase
-        .from('user_activities')
-        .select('*')
-        .eq('user_id', currentUser.id) as any;
-      
-      // Apply filter if not 'all'
+      const db = getFirestoreClient();
+      if (!db) return [];
+      const { collection, query, where, orderBy, getDocs } = await import('firebase/firestore');
+
+      // Build base query
+      let q = query(
+        collection(db, 'user_activities'),
+        where('user_id', '==', currentUser.id),
+        orderBy('created_at', 'desc')
+      );
+
+      const snap = await getDocs(q);
+      let items: UserActivity[] = snap.docs.map(d => ({ id: d.id, ...(d.data() as any) }));
+
+      // Apply client-side filter/search for simplicity
       if (filter !== 'all') {
-        query = query.eq('activity_type', filter);
+        items = items.filter(i => i.activity_type === filter);
       }
-      
-      // Apply search if present (search in page and activity_type)
+
       if (searchTerm.trim()) {
-        query = query.or(`page.ilike.%${searchTerm}%,activity_type.ilike.%${searchTerm}%`);
+        const term = searchTerm.toLowerCase();
+        items = items.filter(i => (i.page || '').toLowerCase().includes(term) || (i.activity_type || '').toLowerCase().includes(term));
       }
-      
-      const { data, error } = await query
-        .order('created_at', { ascending: false });
-      
-      if (error) throw error;
-      return data as UserActivity[];
+
+      return items as UserActivity[];
     },
     enabled: !!currentUser?.id,
   });

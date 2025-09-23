@@ -18,13 +18,28 @@ const WalletConnect: React.FC<WalletConnectProps> = ({ walletInfo, onWalletConne
   const [isConnecting, setIsConnecting] = useState(false);
   const [selectedWallet, setSelectedWallet] = useState<WalletType>("walletconnect");
   const [displayUri, setDisplayUri] = useState<string | null>(null);
+  const [connectError, setConnectError] = useState<string | null>(null);
   const { toast } = useToast();
 
   const handleConnect = async () => {
     let mounted = true;
     setIsConnecting(true);
     try {
-      const info = await connectWallet(selectedWallet);
+      setConnectError(null);
+      // If using WalletConnect, proactively clear any stale provider/session to avoid
+      // reusing an expired proposal which results in 'Proposal expired' errors.
+      if (selectedWallet === 'walletconnect') {
+        try { await disconnectWallet(); } catch (e) {}
+      }
+
+      // Connect but avoid hanging indefinitely — timeout after 25s
+      const connectWithTimeout = (ms: number): Promise<WalletInfo> =>
+        Promise.race([
+          connectWallet(selectedWallet),
+          new Promise((_, reject) => setTimeout(() => reject(new Error('WalletConnect timeout')), ms)),
+        ]) as Promise<WalletInfo>;
+
+      const info = await connectWithTimeout(25000);
       // try to read displayUri for WalletConnect (web fallback / QR)
       try {
         const d = getWalletConnectDisplayUri();
@@ -35,6 +50,16 @@ const WalletConnect: React.FC<WalletConnectProps> = ({ walletInfo, onWalletConne
         toast({ title: "Wallet Connected", description: info.address });
       }
     } catch (err: any) {
+      // handle timeout specifically
+      if (String(err?.message || err).toLowerCase().includes('walletconnect timeout') || String(err?.message || err).toLowerCase().includes('timeout')) {
+        try { await disconnectWallet(); } catch (e) {}
+        setDisplayUri(null);
+        toast({ title: 'Connection Timeout', description: 'WalletConnect timed out. Ensure your wallet app is open and try again.', variant: 'destructive' });
+        setConnectError('Connection timed out — try Reset or refresh.');
+        return;
+      }
+
+      setConnectError(String(err?.message || err || 'Failed to connect'));
       // Provide a clearer message when mobile deep-linking isn't handled by the device/browser
       const msg = String(err?.message || err || 'Failed to connect');
       // If the WalletConnect proposal expired, clear provider to allow a fresh re-init
@@ -99,18 +124,35 @@ const WalletConnect: React.FC<WalletConnectProps> = ({ walletInfo, onWalletConne
                 {isConnecting ? "Connecting..." : "Connect Wallet"}
               </Button>
 
-              {/* If we have a WalletConnect display URI, show Open in Wallet / Web fallback options */}
-              {displayUri && (
-                <div className="flex gap-2 mt-2">
-                  <Button size="sm" variant="ghost" onClick={() => {
-                    // try deep link using a generic metamask scheme first
-                    const deep = `metamask://wc?uri=${encodeURIComponent(displayUri)}`;
-                    window.open(deep, '_blank');
-                  }}>Open in Wallet App</Button>
-                  <Button size="sm" variant="ghost" onClick={() => {
-                    const web = `https://walletconnect.com/wc?uri=${encodeURIComponent(displayUri)}`;
-                    window.open(web, '_blank');
-                  }}>Open WalletConnect Web</Button>
+              {/* Persistent connect error panel: show connectError and displayUri copy/open actions */}
+              {(connectError || displayUri) && (
+                <div className="p-3 mt-3 border rounded bg-red-50 border-red-100">
+                  {connectError && (
+                    <div className="text-sm text-red-800 mb-2">{connectError}</div>
+                  )}
+                  {displayUri && (
+                    <div className="flex items-center gap-2">
+                      <span className="text-xs font-mono truncate">{displayUri}</span>
+                      <Button size="sm" variant="outline" onClick={() => {
+                        navigator.clipboard?.writeText(displayUri);
+                        toast({ title: 'Copied', description: 'WalletConnect URI copied to clipboard' });
+                      }}>Copy</Button>
+                      <Button size="sm" variant="ghost" onClick={() => {
+                        const web = `https://walletconnect.com/wc?uri=${encodeURIComponent(displayUri)}`;
+                        window.open(web, '_blank');
+                      }}>Open Web</Button>
+                    </div>
+                  )}
+                  <div className="mt-2">
+                    <Button size="sm" variant="outline" onClick={async () => {
+                      try {
+                        await disconnectWallet();
+                      } catch (e) {}
+                      setDisplayUri(null);
+                      setConnectError(null);
+                      toast({ title: 'Reset', description: 'WalletConnect reset — try connecting again.' });
+                    }}>Reset WalletConnect</Button>
+                  </div>
                 </div>
               )}
             </div>

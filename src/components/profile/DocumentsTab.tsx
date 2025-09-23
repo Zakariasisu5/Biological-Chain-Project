@@ -2,15 +2,24 @@ import React, { useState, useEffect } from 'react';
 import { Card, CardContent, CardHeader, CardTitle, CardDescription } from '@/components/ui/card';
 import { FileUploader } from '@/components/profile/FileUploader';
 import { FileImage, FileVideo, File, Trash2, RefreshCw } from 'lucide-react';
-import { supabase } from '@/integrations/supabase/client';
+import { getFirestoreClient, getStorageClient } from '@/integrations/firebase/client';
+import { ref as sRef, getDownloadURL, deleteObject } from 'firebase/storage';
+import { collection, query, where, orderBy, limit as limitFn, getDocs, doc, getDoc, deleteDoc } from 'firebase/firestore';
 import { useAuth } from '@/contexts/AuthContext';
 import { Button } from '@/components/ui/button';
 import { useToast } from '@/hooks/use-toast';
-import { FileObject as SupabaseFileObject } from '@supabase/storage-js';
 import { addRecordOnChain, fetchRecords } from '@/integrations/medicalContract';
 import OnChainRecords from '@/components/blockchain/OnChainRecords';
 
-interface FileObject extends SupabaseFileObject {
+interface FileObject {
+  id: string;
+  user_id: string;
+  file_name: string;
+  storage_path: string;
+  public_url?: string;
+  mime_type?: string;
+  size?: number;
+  created_at?: any;
 }
 
 export const DocumentsTab: React.FC = () => {
@@ -28,26 +37,23 @@ export const DocumentsTab: React.FC = () => {
 
     setLoading(true);
     try {
-      const { data, error } = await supabase.storage
-        .from('user-files')
-        .list(currentUser.id, {
-          sortBy: { column: 'created_at', order: 'desc' },
-          limit: 10
-        });
+      const db = getFirestoreClient();
+      if (!db) throw new Error('Firestore not initialized');
+      const { collection, query, where, orderBy, limit: limitFn, getDocs } = await import('firebase/firestore');
 
-      if (error) {
-        console.error('Error fetching files:', error);
-        toast({
-          variant: 'destructive',
-          title: 'Error fetching files',
-          description: error.message,
-        });
-        return;
-      }
+      const q = query(
+        collection(db, 'user_files'),
+        where('user_id', '==', currentUser.id),
+        orderBy('created_at', 'desc'),
+        limitFn(10)
+      );
 
-      setRecentUploads(data as unknown as FileObject[]);
+      const snap = await getDocs(q);
+      const items: FileObject[] = snap.docs.map(d => ({ id: d.id, ...(d.data() as any) }));
+      setRecentUploads(items);
     } catch (err) {
       console.error('Error in fetchRecentUploads:', err);
+      toast({ variant: 'destructive', title: 'Error fetching files', description: (err as any)?.message || String(err) });
     } finally {
       setLoading(false);
     }
@@ -55,30 +61,33 @@ export const DocumentsTab: React.FC = () => {
 
   const handleFileDelete = async (filePath: string) => {
     if (!currentUser?.id) return;
-    
     try {
-      const { error } = await supabase.storage
-        .from('user-files')
-        .remove([filePath]);
-      
-      if (error) {
-        console.error('Error deleting file:', error);
-        toast({
-          variant: 'destructive',
-          title: 'Delete failed',
-          description: 'There was a problem deleting your file.',
-        });
-        return;
+      // filePath expected to be the Firestore doc id for our migration
+      const db = getFirestoreClient();
+      const storage = getStorageClient();
+      if (!db || !storage) throw new Error('Firestore or Storage not initialized');
+
+      // Fetch the metadata doc
+      const metaRef = doc(db, 'user_files', filePath);
+      const metaSnap = await getDoc(metaRef);
+      if (!metaSnap.exists()) {
+        throw new Error('File metadata not found');
       }
-      
+      const meta = metaSnap.data() as any;
+
+      // Delete storage object
+      const storageReference = sRef(storage, meta.storage_path);
+      await deleteObject(storageReference);
+
+      // Delete Firestore metadata
+      await deleteDoc(metaRef);
+
       fetchRecentUploads();
-      
-      toast({
-        title: 'File deleted',
-        description: 'Your file has been successfully deleted.',
-      });
+
+      toast({ title: 'File deleted', description: 'Your file has been successfully deleted.' });
     } catch (err) {
       console.error('Error in handleFileDelete:', err);
+      toast({ variant: 'destructive', title: 'Delete failed', description: (err as any)?.message || String(err) });
     }
   };
 
@@ -186,11 +195,11 @@ export const DocumentsTab: React.FC = () => {
                   {recentUploads.map((file) => (
                     <div key={file.id} className="flex items-center justify-between p-3 hover:bg-muted/30">
                       <div className="flex items-center gap-2">
-                        {getFileIcon(file.metadata?.mimetype || '')}
+                        {getFileIcon(file.mime_type || '')}
                         <div>
-                          <p className="text-sm font-medium">{file.name}</p>
+                          <p className="text-sm font-medium">{file.file_name}</p>
                           <p className="text-xs text-muted-foreground">
-                            {new Date(file.created_at).toLocaleDateString()} • {Math.round((file.metadata?.size || 0) / 1024)} KB
+                            {file.created_at ? new Date(file.created_at.seconds ? file.created_at.seconds * 1000 : file.created_at).toLocaleDateString() : ''} • {Math.round((file.size || 0) / 1024)} KB
                           </p>
                         </div>
                       </div>
@@ -198,11 +207,20 @@ export const DocumentsTab: React.FC = () => {
                         <Button
                           variant="ghost"
                           size="sm"
-                          onClick={() => {
-                            const url = supabase.storage
-                              .from('user-files')
-                              .getPublicUrl(`${currentUser?.id}/${file.name}`).data.publicUrl;
-                            window.open(url, '_blank');
+                          onClick={async () => {
+                            try {
+                              const storage = getStorageClient();
+                              if (!storage) throw new Error('Storage not initialized');
+                              const storageModule = await import('firebase/storage');
+                              const sRef = storageModule.ref;
+                              const getDownloadURL = storageModule.getDownloadURL;
+                              const ref = sRef(storage, file.storage_path);
+                              const url = await getDownloadURL(ref);
+                              window.open(url, '_blank');
+                            } catch (e) {
+                              console.error('Error opening file:', e);
+                              toast({ variant: 'destructive', title: 'View failed', description: (e as any)?.message || String(e) });
+                            }
                           }}
                         >
                           View
@@ -211,7 +229,7 @@ export const DocumentsTab: React.FC = () => {
                           variant="ghost"
                           size="sm"
                           className="text-destructive"
-                          onClick={() => handleFileDelete(`${currentUser?.id}/${file.name}`)}
+                          onClick={() => handleFileDelete(file.id)}
                         >
                           <Trash2 className="h-4 w-4" />
                         </Button>

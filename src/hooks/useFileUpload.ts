@@ -1,6 +1,7 @@
 
 import { useState, useEffect } from 'react';
-import { supabase } from '@/integrations/supabase/client';
+import { getStorageClient } from '@/integrations/firebase/client';
+import { ref as storageRef, uploadBytesResumable, getDownloadURL } from 'firebase/storage';
 import { useAuth } from '@/contexts/AuthContext';
 import { useToast } from '@/hooks/use-toast';
 import { useActivityTracker } from '@/utils/activityTracker';
@@ -27,33 +28,26 @@ export function useFileUpload({
   const { currentUser } = useAuth();
   const { trackActivity } = useActivityTracker();
 
-  // Check if the bucket exists and is accessible
+  // Check storage availability
   useEffect(() => {
-    const checkBucket = async () => {
+    const checkStorage = async () => {
       try {
         if (!currentUser?.id) {
-          console.log('No authenticated user, storage access will be limited');
           setBucketStatus('unavailable');
           return;
         }
-
-        // Check if the bucket exists by trying to list objects
-        const { data, error } = await supabase.storage.from('user-files').list();
-        
-        if (error) {
-          console.error('Error checking user-files bucket:', error);
+        const storage = getStorageClient();
+        if (!storage) {
           setBucketStatus('unavailable');
-        } else {
-          console.log('user-files bucket found and accessible');
-          setBucketStatus('available');
+          return;
         }
+        setBucketStatus('available');
       } catch (err) {
-        console.error('Error checking bucket access:', err);
+        console.error('Error checking storage access:', err);
         setBucketStatus('unavailable');
       }
     };
-    
-    checkBucket();
+    checkStorage();
   }, [currentUser?.id]);
 
   // Simulate progress during upload
@@ -119,7 +113,7 @@ export function useFileUpload({
     setFile(selectedFile);
   };
 
-  // Upload file to Supabase storage
+  // Upload file to Firebase Storage
   const uploadFile = async () => {
     if (!file || !currentUser?.id) {
       toast({
@@ -152,28 +146,29 @@ export function useFileUpload({
       
       console.log('Uploading file to path:', filePath);
       
-      // Upload to Supabase
-      const { error: uploadError, data } = await supabase.storage
-        .from('user-files')
-        .upload(filePath, file, {
-          cacheControl: '3600',
-          upsert: false,
+      // Upload to Firebase Storage
+      const storage = getStorageClient();
+      if (!storage) throw new Error('Firebase storage not initialized');
+      const storagePath = `user-files/${filePath}`;
+      const ref = storageRef(storage, storagePath);
+      const uploadTask = uploadBytesResumable(ref, file);
+
+      // Track progress using uploadTask
+      await new Promise<void>((resolve, reject) => {
+        uploadTask.on('state_changed', (snapshot) => {
+          const pct = Math.round((snapshot.bytesTransferred / snapshot.totalBytes) * 100);
+          setProgress(pct);
+        }, (err) => {
+          reject(err);
+        }, async () => {
+          try {
+            const url = await getDownloadURL(ref);
+            // call callback with public url
+            if (onUploadComplete) onUploadComplete(url);
+            resolve();
+          } catch (e) { reject(e); }
         });
-      
-      if (uploadError) {
-        console.error('Upload error:', uploadError);
-        throw uploadError;
-      }
-      
-      console.log('Upload successful:', data);
-      
-      // Get public URL
-      const { data: urlData } = supabase.storage
-        .from('user-files')
-        .getPublicUrl(filePath);
-      
-      const publicUrl = urlData.publicUrl;
-      console.log('Public URL:', publicUrl);
+      });
       
       // Track activity
       if (currentUser.id) {
@@ -192,9 +187,30 @@ export function useFileUpload({
         description: 'Your file has been uploaded and saved to your account.',
       });
       
-      // Call the callback with the file path
+      // Call the callback with the file path (public URL)
+      // and write a Firestore metadata document for listing
+      try {
+        const { getFirestoreClient } = await import('@/integrations/firebase/client');
+        const db = getFirestoreClient();
+        if (db) {
+          const { collection, addDoc, serverTimestamp } = await import('firebase/firestore');
+          await addDoc(collection(db, 'user_files'), {
+            user_id: currentUser.id,
+            file_name: file.name,
+            storage_path: `user-files/${currentUser.id}/${fileName}`,
+            public_url: undefined, // will fetch via getDownloadURL when needed
+            mime_type: file.type,
+            size: file.size,
+            created_at: serverTimestamp(),
+          });
+        }
+      } catch (e) {
+        console.warn('Failed to write file metadata to Firestore', e);
+      }
+
       if (onUploadComplete) {
-        onUploadComplete(publicUrl);
+        // getDownloadURL already passed via onUploadComplete earlier invocation
+        // (we called onUploadComplete inside uploadTask completion)
       }
       
       // Reset file state after a short delay

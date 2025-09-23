@@ -12,6 +12,7 @@ import { mockAlerts } from '@/lib/mockData';
 import { Badge } from '@/components/ui/badge';
 import { AlertData } from '@/lib/types';
 import ThemeToggle from '@/components/theme/ThemeToggle';
+import { useWalletContext } from '@/contexts/WalletContext';
 
 interface HeaderProps {
   children?: React.ReactNode;
@@ -73,7 +74,7 @@ const Header = ({ children }: HeaderProps) => {
       </div>
       
       <div className="flex items-center gap-1 sm:gap-4">
-        <Popover>
+  <Popover>
           <PopoverTrigger asChild>
             <Button variant="outline" size="icon" className="relative">
               <Bell className="h-5 w-5" />
@@ -173,9 +174,120 @@ const Header = ({ children }: HeaderProps) => {
         <div className="flex items-center gap-2">
           <ThemeToggle />
         </div>
+
+        {/* Wallet connect button */}
+        <WalletConnectButton />
       </div>
     </header>
   );
 };
 
 export default Header;
+
+function WalletConnectButton() {
+  const { wallet, connectMetaMask, connectWalletConnect, disconnect } = useWalletContext();
+  const { toast } = useToast();
+  const [loading, setLoading] = useState(false);
+  const shortAddress = wallet.account ? `${wallet.account.slice(0, 6)}...${wallet.account.slice(-4)}` : null;
+
+  const onConnectMetaMask = async () => {
+    setLoading(true);
+    try {
+      // If no injected provider, guide user to install MetaMask
+      // eslint-disable-next-line @typescript-eslint/no-explicit-any
+      const hasInjected = typeof (window as any).ethereum !== 'undefined';
+      if (!hasInjected) {
+        try {
+          toast({ title: 'MetaMask not detected', description: 'Install MetaMask to connect with a browser wallet.' });
+        } catch (e) {}
+        // open MetaMask download page in a new tab
+        try { window.open('https://metamask.io/download.html', '_blank'); } catch (e) {}
+        return;
+      }
+
+      await connectMetaMask();
+    } catch (e) {
+      console.error(e);
+    } finally {
+      setLoading(false);
+    }
+  };
+
+  const onConnectWalletConnect = async () => {
+    setLoading(true);
+    try {
+      await connectWalletConnect();
+    } catch (e) {
+      console.error(e);
+    } finally {
+      setLoading(false);
+    }
+  };
+
+  const onDisconnect = async () => {
+    setLoading(true);
+    try {
+      await disconnect();
+    } catch (e) {
+      console.error(e);
+    } finally {
+      setLoading(false);
+    }
+  };
+
+  return (
+    <div>
+      <Popover>
+        <PopoverTrigger asChild>
+          <Button variant={wallet.account ? 'secondary' : 'default'} size="sm" disabled={loading}>
+            {loading ? 'Connecting...' : (wallet.account ? shortAddress : 'Connect Wallet')}
+          </Button>
+        </PopoverTrigger>
+        <PopoverContent align="end" className="w-44 p-2">
+          {!wallet.account ? (
+            <div className="flex flex-col gap-1">
+              <Button
+                variant="ghost"
+                size="sm"
+                className="justify-start"
+                onClick={onConnectMetaMask}
+                disabled={loading}
+              >
+                Connect MetaMask
+              </Button>
+              <Button
+                variant="ghost"
+                size="sm"
+                className="justify-start"
+                onClick={onConnectWalletConnect}
+                disabled={loading}
+              >
+                Connect WalletConnect
+              </Button>
+            </div>
+          ) : (
+            <div className="flex flex-col gap-1">
+              <Button
+                variant="ghost"
+                size="sm"
+                className="justify-start"
+                onClick={() => navigator.clipboard?.writeText(wallet.account || '')}
+              >
+                Copy Address
+              </Button>
+              <Button
+                variant="ghost"
+                size="sm"
+                className="justify-start"
+                onClick={onDisconnect}
+                disabled={loading}
+              >
+                Disconnect
+              </Button>
+            </div>
+          )}
+        </PopoverContent>
+      </Popover>
+    </div>
+  );
+}

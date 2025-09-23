@@ -1,7 +1,8 @@
 
-import { supabase } from "@/integrations/supabase/client";
+import { getFirestoreClient } from '@/integrations/firebase/client';
 import { useAuth } from "@/contexts/AuthContext";
 import { WalletType } from "./walletUtils";
+import { collection, addDoc, serverTimestamp } from 'firebase/firestore';
 
 export type ActivityType = 
   | 'login' 
@@ -62,20 +63,24 @@ export const logUserActivity = async (
       screenHeight: window.screen.height
     };
 
-    // Insert activity record into Supabase
-    const { error } = await supabase
-      .from('user_activities')
-      .insert({
+    // Insert activity record into Firestore
+    try {
+      const db = getFirestoreClient();
+      if (!db) {
+        console.error('Firestore not initialized, cannot log activity');
+        return;
+      }
+      const col = collection(db, 'user_activities');
+      await addDoc(col, {
         user_id: userId,
         activity_type: activityType,
         page: page || window.location.pathname,
         details: details || {},
         device_info: deviceInfo,
-        ip_address: null // IP is captured server-side by Supabase
-      } as any);
-
-    if (error) {
-      console.error('Error logging user activity:', error);
+        created_at: serverTimestamp(),
+      });
+    } catch (e) {
+      console.error('Error logging user activity to Firestore:', e);
     }
   } catch (error) {
     console.error('Failed to log activity:', error);

@@ -7,7 +7,7 @@ import { Input } from '@/components/ui/input';
 import { Label } from '@/components/ui/label';
 import { useToast } from '@/hooks/use-toast';
 import { Shield } from 'lucide-react';
-import { supabase } from '@/integrations/supabase/client';
+// auth handled via useAuth (Firebase)
 import { useActivityTracker } from '@/utils/activityTracker';
 
 const Login = () => {

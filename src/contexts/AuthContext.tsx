@@ -1,11 +1,13 @@
 
 import React, { createContext, useState, useContext, useEffect } from 'react';
+import { initFirebase, getAuthClient } from '@/integrations/firebase/client';
+import { User as FirebaseUser, onAuthStateChanged, signInWithEmailAndPassword, createUserWithEmailAndPassword, signOut } from 'firebase/auth';
 
 type User = {
-  walletAddress: any;
   id: string;
   email: string;
-  name: string;
+  name: string | null;
+  walletAddress?: string | null;
   plan?: 'Basic' | 'Premium' | 'Enterprise';
 };
 
@@ -14,7 +16,7 @@ interface AuthContextType {
   loading: boolean;
   login: (email: string, password: string) => Promise<void>;
   register: (name: string, email: string, password: string) => Promise<void>;
-  logout: () => void;
+  logout: () => Promise<void>;
   isAuthenticated: boolean;
 }
 
@@ -25,75 +27,65 @@ export const AuthProvider: React.FC<{ children: React.ReactNode }> = ({ children
   const [loading, setLoading] = useState(true);
 
   useEffect(() => {
-    // Check if user is stored in local storage
-    const storedUser = localStorage.getItem('currentUser');
-    if (storedUser) {
-      setCurrentUser(JSON.parse(storedUser));
-    }
-    setLoading(false);
+    // Initialize firebase
+    try { initFirebase(); } catch (e) { /* ignore */ }
+    const auth = getAuthClient();
+    if (!auth) { setLoading(false); return; }
+
+    const unsub = onAuthStateChanged(auth, (fbUser: FirebaseUser | null) => {
+      if (fbUser) {
+        const u: User = {
+          id: fbUser.uid,
+          email: fbUser.email || '',
+          name: fbUser.displayName || null,
+          walletAddress: null,
+        };
+        setCurrentUser(u);
+      } else {
+        setCurrentUser(null);
+      }
+      setLoading(false);
+    });
+
+    return () => { try { unsub(); } catch (e) {} };
   }, []);
 
-  // For demo purposes, we're using local storage
-  // In a real app, this would connect to a backend
   const login = async (email: string, password: string): Promise<void> => {
-    // Simulate API call
     setLoading(true);
-    
-    return new Promise((resolve, reject) => {
-      setTimeout(() => {
-        // Demo login logic
-        if (email && password.length >= 6) {
-          // Demo user
-          const user: User = {
-            id: '1',
-            email,
-            name: email.split('@')[0],
-            plan: 'Premium'
-          };
-          
-          setCurrentUser(user);
-          localStorage.setItem('currentUser', JSON.stringify(user));
-          setLoading(false);
-          resolve();
-        } else {
-          setLoading(false);
-          reject(new Error('Invalid credentials'));
-        }
-      }, 1000);
-    });
+    try {
+      const auth = getAuthClient();
+      if (!auth) throw new Error('Firebase auth not initialized');
+      await signInWithEmailAndPassword(auth, email, password);
+    } finally {
+      setLoading(false);
+    }
   };
 
   const register = async (name: string, email: string, password: string): Promise<void> => {
-    // Simulate API call
     setLoading(true);
-    
-    return new Promise((resolve, reject) => {
-      setTimeout(() => {
-        // Demo register logic
-        if (name && email && password.length >= 6) {
-          // Demo user
-          const user: User = {
-            id: Date.now().toString(),
-            email,
-            name,
-            plan: 'Basic'
-          };
-          
-          setCurrentUser(user);
-          localStorage.setItem('currentUser', JSON.stringify(user));
-          setLoading(false);
-          resolve();
-        } else {
-          setLoading(false);
-          reject(new Error('Invalid registration data'));
-        }
-      }, 1000);
-    });
+    try {
+      const auth = getAuthClient();
+      if (!auth) throw new Error('Firebase auth not initialized');
+      const userCred = await createUserWithEmailAndPassword(auth, email, password);
+      // Optionally update display name via updateProfile if needed
+      // import { updateProfile } from 'firebase/auth' and call updateProfile(userCred.user, { displayName: name })
+      // For simplicity we set currentUser here after register
+      setCurrentUser({ id: userCred.user.uid, email: userCred.user.email || '', name, walletAddress: null, plan: 'Basic' });
+    } finally {
+      setLoading(false);
+    }
   };
 
-  const logout = () => {
-    setCurrentUser(null);
-    localStorage.removeItem('currentUser');
+  const logout = async (): Promise<void> => {
+    setLoading(true);
+    try {
+      const auth = getAuthClient();
+      if (!auth) throw new Error('Firebase auth not initialized');
+      await signOut(auth);
+      setCurrentUser(null);
+    } finally {
+      setLoading(false);
+    }
   };
 
   const value = {
@@ -102,7 +94,7 @@ export const AuthProvider: React.FC<{ children: React.ReactNode }> = ({ children
     login,
     register,
     logout,
-    isAuthenticated: !!currentUser
+    isAuthenticated: !!currentUser,
   };
 
   return <AuthContext.Provider value={value}>{children}</AuthContext.Provider>;

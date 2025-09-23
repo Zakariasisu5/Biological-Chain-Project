@@ -43,7 +43,8 @@ export const SecurityTab: React.FC<SecurityTabProps> = ({ isEditing, currentUser
 
   const connectWalletForSubscription = async () => {
     try {
-      const info = await connectWallet();
+      // specify wallet type for connectWallet helper
+      const info = await connectWallet('walletconnect');
       setWalletInfo(info);
       toast({
         title: "Wallet Connected",
@@ -58,8 +59,9 @@ export const SecurityTab: React.FC<SecurityTabProps> = ({ isEditing, currentUser
     }
   };
 
-  const disconnectWalletForSubscription = () => {
-    setWalletInfo(disconnectWallet());
+  const disconnectWalletForSubscription = async () => {
+    await disconnectWallet();
+    setWalletInfo(defaultWalletInfo);
     toast({
       title: "Wallet Disconnected",
       description: "Your wallet has been disconnected"
