@@ -344,16 +344,34 @@ export async function connectWallet(walletType: WalletType): Promise<WalletInfo>
 
       return info;
     } catch (err: any) {
-      console.error("WalletConnect connection failed:", err);
+      // Log concise message and keep full details at debug level
+      try {
+        console.error('WalletConnect connection failed:', err?.message || String(err));
+        console.debug('WalletConnect error (details):', err);
+      } catch (logErr) {
+        console.error('WalletConnect connection failed');
+      }
+
       // Surface a clearer message for common WalletConnect errors
-      if (String(err?.message || err).toLowerCase().includes('proposal expired')) {
+      const rawMsg = String(err?.message || '').toLowerCase();
+      if (rawMsg.includes('proposal expired')) {
         throw new Error('WalletConnect proposal expired — try reconnecting or refresh the page.');
       }
-      throw new Error(
-        err?.message?.includes("Unauthorized")
-          ? "WalletConnect failed: make sure your production domain is added to the WalletConnect Cloud console."
-          : err?.message || "Failed to connect WalletConnect"
-      );
+
+      // Map relay/provider RPC internal errors (often -32603) to actionable guidance
+      if (rawMsg.includes('no active wallet') || rawMsg.includes('no active session') || rawMsg.includes('no active connector') || rawMsg.includes('could not coalesce')) {
+        throw new Error('No active wallet session found. Open your wallet app/extension and approve the connection. If using WalletConnect, ensure you accept the session proposal in your wallet app.');
+      }
+
+      if (rawMsg.includes('unauthorized') || rawMsg.includes('origin not allowed')) {
+        throw new Error(`WalletConnect relay rejected this origin. Ensure the project ID (${WALLETCONNECT_PROJECT_ID}) is correct and add your app origin to the WalletConnect Cloud project's Allowed Origins.`);
+      }
+
+      if (err?.message?.includes('Unauthorized')) {
+        throw new Error('WalletConnect failed: make sure your production domain is added to the WalletConnect Cloud console.');
+      }
+
+      throw new Error(err?.message || 'Failed to connect WalletConnect');
     }
   }
 

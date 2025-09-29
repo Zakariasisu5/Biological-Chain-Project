@@ -88,16 +88,13 @@ export class BlockchainService {
         chainId: this.chainId
       };
     } catch (error: any) {
-      // Log structured error information to help debugging RPC/provider issues
+      // Log a concise error message and keep the full object at debug level to avoid exposing raw RPC objects
       try {
-        console.error('Wallet connection error:', {
-          message: error?.message || String(error),
-          code: error?.code,
-          data: error?.data,
-          stack: error?.stack
-        });
+        console.error('Wallet connection error:', error?.message || String(error));
+        // Keep the full object available in debug logs for developers
+        console.debug('Wallet connection error (details):', { code: error?.code, data: error?.data, stack: error?.stack, raw: error });
       } catch (logErr) {
-        console.error('Wallet connection error (log failed):', error);
+        console.error('Wallet connection error (log failed):', String(error));
       }
       
       // Provide more specific error messages
@@ -106,6 +103,11 @@ export class BlockchainService {
       } else if (error.code === -32603) {
         // RPC/internal error commonly due to wrong network, inaccessible local node, or RPC/relay errors.
         // Provide actionable guidance without assuming localhost in production.
+        // Map known provider RPC messages to clearer guidance
+        const rawMsg = String(error?.message || '');
+        if (rawMsg.toLowerCase().includes('no active wallet') || rawMsg.toLowerCase().includes('no active session') || rawMsg.toLowerCase().includes('no active connector')) {
+          throw new Error('No active wallet found. Ensure your wallet app/extension is open and unlocked. For WalletConnect, open your wallet app and approve the session proposal; for browser wallets, unlock and select an account.');
+        }
         const desiredChainId = Number(import.meta.env.VITE_CHAIN_ID || process.env.REACT_APP_CHAIN_ID || 11155111);
         const desiredChainHex = `0x${desiredChainId.toString(16)}`;
         const chainName = desiredChainId === 31337 ? 'Localhost (Hardhat)' : desiredChainId === 11155111 ? 'Sepolia' : desiredChainId === 1 ? 'Mainnet' : `chain ${desiredChainId}`;
