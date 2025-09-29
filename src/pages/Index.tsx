@@ -8,6 +8,7 @@ import AlertsCard from '@/components/dashboard/AlertsCard';
 import RecommendationsCard from '@/components/dashboard/RecommendationsCard';
 import PredictiveCard from '@/components/dashboard/PredictiveCard';
 import HealthMetricCard from '@/components/dashboard/HealthMetricCard';
+import HealthDashboardWidget from '@/components/dashboard/HealthDashboardWidget';
 import { Heart, Activity, Bed, Footprints } from 'lucide-react';
 
 import { 
@@ -57,7 +58,7 @@ const Index = () => {
         </div>
 
         <div className="grid grid-cols-1 lg:grid-cols-3 gap-6">
-          <HealthMetricCard data={currentHealthData} className="lg:col-span-1" />
+          <HealthDashboardWidget className="lg:col-span-1" />
           <HealthChart 
             title="Health Trends" 
             data={healthTrends} 

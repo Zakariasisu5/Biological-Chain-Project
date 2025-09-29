@@ -1,8 +1,8 @@
 import { useState } from "react";
-import { useMedicalRecords } from "@/hooks/useMedicalRecords";
+import { useBlockchain } from "@/hooks/blockchain";
 
 export default function MedicalRecordsPage() {
-  const { contract, account } = useMedicalRecords();
+  const { account, addRecord: addRecordHelper, generateRecordHash, getAllRecords } = useBlockchain();
 
   const [patient, setPatient] = useState("");
   const [diagnosis, setDiagnosis] = useState("");
@@ -12,12 +12,13 @@ export default function MedicalRecordsPage() {
 
   // Add new record
   const addRecord = async () => {
-    if (!contract) return alert("Contract not loaded");
+    if (!account) return alert("Please connect your wallet first");
     try {
       setLoading(true);
       const patientAddress = patient || account;
-      const tx = await contract.addRecord(patientAddress, diagnosis, "text", treatment);
-      await tx.wait();
+      const recordHash = generateRecordHash ? generateRecordHash(`${patientAddress}-${diagnosis}`) : undefined;
+      if (!recordHash) throw new Error('Failed to generate record hash');
+      await addRecordHelper(patientAddress, diagnosis, "text", treatment, recordHash);
       alert("Record added successfully!");
     } catch (err) {
       console.error(err);
@@ -29,16 +30,11 @@ export default function MedicalRecordsPage() {
 
   // Fetch all records
   const fetchRecords = async () => {
-    if (!contract || !account) return alert("Contract not loaded or account missing");
+    if (!account) return alert("Please connect your wallet first");
     try {
-      const countBN = await contract.getRecordCount(account);
-      const count = Number(countBN);
-      const fetched: any[] = [];
-      for (let i = 0; i < count; i++) {
-        const record = await contract.getRecord(account, i);
-        fetched.push(record);
-      }
-      setRecords(fetched);
+      // use the hook service to fetch all records for the connected account
+  const all = await getAllRecords(account as string);
+  setRecords(all as any[]);
     } catch (err) {
       console.error(err);
       alert("Error fetching records");

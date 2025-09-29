@@ -1,0 +1,7 @@
+.exit
+Get-Content .env
+type .env
+npx hardhat run scripts/quick-deploy.cjs --network localhost
+exit
+npx hardhat run scripts/deploy-localhost.cjs --network localhost
+npm run deploy:localhost

@@ -22,7 +22,8 @@ export async function getContract(signerOrProvider?: any) {
 export async function addRecordOnChain(patientAddress: string, cid: string, fileType = 'any', meta = '') {
   const { signer } = await getProviderAndSigner();
   const contract = new ethers.Contract(CONTRACT_ADDRESS, CONTRACT_ABI, signer);
-  const tx = await contract.addRecord(patientAddress, cid, fileType, meta);
+  const recordHash = ethers.keccak256(ethers.toUtf8Bytes(`${patientAddress}-${cid}-${Date.now()}`));
+  const tx = await contract.addRecord(patientAddress, cid, fileType, meta, recordHash);
   await tx.wait();
   return tx;
 }

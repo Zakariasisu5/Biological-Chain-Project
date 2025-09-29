@@ -35,6 +35,41 @@
       "artifacts": [
         "MedicalRecords"
       ]
+    },
+    "D:\\biologic-chain-main\\Contracts\\MedicalRecords.sol": {
+      "lastModificationDate": 1759005333464,
+      "contentHash": "0dc94bdf16bb24df4888c548b429379d",
+      "sourceName": "Contracts/MedicalRecords.sol",
+      "solcConfig": {
+        "version": "0.8.19",
+        "settings": {
+          "optimizer": {
+            "enabled": true,
+            "runs": 200
+          },
+          "outputSelection": {
+            "*": {
+              "*": [
+                "abi",
+                "evm.bytecode",
+                "evm.deployedBytecode",
+                "evm.methodIdentifiers",
+                "metadata"
+              ],
+              "": [
+                "ast"
+              ]
+            }
+          }
+        }
+      },
+      "imports": [],
+      "versionPragmas": [
+        "^0.8.19"
+      ],
+      "artifacts": [
+        "MedicalRecords"
+      ]
     }
   }
 }

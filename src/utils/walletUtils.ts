@@ -99,6 +99,36 @@ const env = typeof import.meta !== 'undefined' ? (import.meta as any).env : (pro
 const DEFAULT_DEV_WC_PROJECT_ID = "4f4c596844dd89275d4815534ff37881"; // DO NOT use this for production
 const WALLETCONNECT_PROJECT_ID = env.VITE_WALLETCONNECT_PROJECT_ID || env.WALLETCONNECT_PROJECT_ID || DEFAULT_DEV_WC_PROJECT_ID;
 
+// Desired chain id (allow overriding via env). Prefer Vite env, fallback to REACT_APP_CHAIN_ID.
+const DESIRED_CHAIN_ID = Number(env.VITE_CHAIN_ID || env.REACT_APP_CHAIN_ID || 11155111);
+
+async function trySwitchNetworkIfNeeded(providerInstance: BrowserProvider | null, rawProvider: any) {
+  try {
+    if (!providerInstance) return;
+    const net = await providerInstance.getNetwork();
+    const current = Number(net.chainId);
+    if (!DESIRED_CHAIN_ID || current === DESIRED_CHAIN_ID) return;
+    // attempt to switch using provider.request if available
+    const chainIdHex = `0x${DESIRED_CHAIN_ID.toString(16)}`;
+    try {
+      if (rawProvider && typeof rawProvider.request === 'function') {
+        // eslint-disable-next-line @typescript-eslint/no-explicit-any
+        await rawProvider.request({ method: 'wallet_switchEthereumChain', params: [{ chainId: chainIdHex }] });
+        // re-check network
+        const net2 = await providerInstance.getNetwork();
+        // eslint-disable-next-line no-console
+        console.debug('[walletUtils] switched network, new chainId=', net2.chainId);
+      }
+    } catch (switchErr: any) {
+      // Log and continue; some providers (or sessions) may not support programmatic switching
+      // eslint-disable-next-line no-console
+      console.warn('[walletUtils] automatic network switch failed', switchErr?.message || switchErr);
+    }
+  } catch (e) {
+    // ignore
+  }
+}
+
 // If we're using the fallback (no env var), warn loudly so developers replace it with their own project ID.
 try {
   const usingFallback = !(env && (env.VITE_WALLETCONNECT_PROJECT_ID || env.WALLETCONNECT_PROJECT_ID));
@@ -293,7 +323,9 @@ export async function connectWallet(walletType: WalletType): Promise<WalletInfo>
         throw enableErr;
       }
 
-      provider = new ethers.BrowserProvider(wcProviderRef as any);
+  provider = new ethers.BrowserProvider(wcProviderRef as any);
+  // attempt to switch Network to desired chain if needed
+  trySwitchNetworkIfNeeded(provider, wcProviderRef).catch(() => {});
       const signer = await provider.getSigner();
       const address = await signer.getAddress();
       const network = await provider.getNetwork();
@@ -328,7 +360,18 @@ export async function connectWallet(walletType: WalletType): Promise<WalletInfo>
   // Browser wallets (MetaMask, Coinbase, TrustWallet)
   if (!window.ethereum) throw new Error(`${walletType} wallet not detected`);
 
-  provider = new ethers.BrowserProvider(window.ethereum as any);
+  // Ensure the injected provider exposes a request interface (interactive wallet)
+  // Some testing or mock environments may inject a minimal RPC endpoint that is not an interactive signer.
+  // We prefer real injected wallets (MetaMask / Coinbase) that implement request/send methods.
+  // eslint-disable-next-line @typescript-eslint/no-explicit-any
+  const rawInjected = (window as any).ethereum as any;
+  if (!rawInjected || typeof rawInjected.request !== 'function') {
+    throw new Error(`${walletType} appears to be a non-interactive provider; please install or enable MetaMask/Coinbase Wallet`);
+  }
+
+  provider = new ethers.BrowserProvider(rawInjected);
+  // attempt to switch Network to desired chain if needed
+  trySwitchNetworkIfNeeded(provider, (window as any).ethereum).catch(() => {});
   const accounts = await provider.send("eth_requestAccounts", []);
   if (!accounts || accounts.length === 0) throw new Error("No accounts found");
 
@@ -436,7 +479,8 @@ export async function restoreConnection(): Promise<WalletInfo | null> {
         return null;
       }
 
-      provider = new ethers.BrowserProvider(wcProviderRef as any);
+  provider = new ethers.BrowserProvider(wcProviderRef as any);
+  trySwitchNetworkIfNeeded(provider, wcProviderRef).catch(() => {});
       const signer = await provider.getSigner();
       const address = await signer.getAddress();
       const network = await provider.getNetwork();
@@ -458,7 +502,8 @@ export async function restoreConnection(): Promise<WalletInfo | null> {
       // eslint-disable-next-line @typescript-eslint/no-explicit-any
       const accounts: string[] = await (window.ethereum as any).request?.({ method: 'eth_accounts' }) || [];
       if (!accounts || accounts.length === 0) return null;
-      provider = new ethers.BrowserProvider(window.ethereum as any);
+  provider = new ethers.BrowserProvider(window.ethereum as any);
+  trySwitchNetworkIfNeeded(provider, (window as any).ethereum).catch(() => {});
       const network = await provider.getNetwork();
       const balanceBN = await provider.getBalance(accounts[0]);
       return {

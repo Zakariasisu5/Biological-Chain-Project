@@ -25,6 +25,14 @@ export const WalletProvider: React.FC<{ children: React.ReactNode }> = ({ childr
   const connectMetaMask = useCallback(async () => {
     if (!(window as any).ethereum) return null;
     try {
+      // Ensure injected provider supports interactive requests
+      // eslint-disable-next-line @typescript-eslint/no-explicit-any
+      const rawInjected = (window as any).ethereum as any;
+      if (!rawInjected || typeof rawInjected.request !== 'function') {
+        console.error('Injected provider present but does not expose request() - likely a mock or read-only provider');
+        return null;
+      }
+
       const info = await connectWalletUtil('metamask');
       if (!info) return null;
       const sharedProvider = getProvider();

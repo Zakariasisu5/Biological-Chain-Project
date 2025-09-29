@@ -20,6 +20,7 @@ import Blockchain from "./pages/Blockchain";
 import Profile from "./pages/Profile";
 import Settings from "./pages/Settings";
 import UserActivities from "./pages/UserActivities";
+import AdvancedHealth from "./pages/AdvancedHealth";
 import WalletDebug from '@/components/WalletDebug';
 
 const queryClient = new QueryClient({
@@ -61,6 +62,7 @@ const App = () => (
                 <Route path="/profile" element={<Profile />} />
                 <Route path="/settings" element={<Settings />} />
                 <Route path="/activities" element={<UserActivities />} />
+                <Route path="/advanced-health" element={<AdvancedHealth />} />
                 <Route path="/wallet-debug" element={<WalletDebug />} />
               </Route>
 

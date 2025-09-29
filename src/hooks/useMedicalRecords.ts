@@ -43,9 +43,18 @@ export function useMedicalRecords() {
     const cidOrText = record;
     const fileType = "text";
     const meta = name || "";
-    const tx = await contract.addRecord(patientAddress, cidOrText, fileType, meta);
-    await tx.wait();
-    console.log("Record added:", tx.hash);
+    // generate a simple record hash so the contract receives the required 5th parameter
+    try {
+      // lazy import ethers to avoid top-level change
+      const { ethers } = await import("ethers");
+      const recordHash = ethers.keccak256(ethers.toUtf8Bytes(`${patientAddress}-${cidOrText}-${Date.now()}`));
+      const tx = await contract.addRecord(patientAddress, cidOrText, fileType, meta, recordHash);
+      await tx.wait();
+      console.log("Record added:", tx.hash);
+    } catch (err) {
+      console.error("Failed to add record:", err);
+      throw err;
+    }
   };
 
   // Get record by index for the connected account

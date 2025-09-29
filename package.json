@@ -18,8 +18,14 @@
     "deploy": "npm run hardhat -- run scripts/deploy.ts --network sepolia",
     "hardhat:compile": "npm run hardhat -- compile",
     "hardhat:test": "npm run hardhat -- test",
-    "deploy:sepolia": "npx hardhat run scripts/deploy.js MedicalRecords --network sepolia",
-    "deploy:local": "npx hardhat run scripts/deploy.js MedicalRecords --network hardhat"
+    "deploy:sepolia": "npx hardhat run scripts/deploy-production.cjs --network sepolia",
+    "deploy:mainnet": "npx hardhat run scripts/deploy-production.cjs --network mainnet",
+    "deploy:localhost": "npx hardhat run scripts/deploy-localhost.cjs --network localhost",
+    "deploy:local": "npx hardhat run scripts/deploy-localhost.cjs --network hardhat",
+    "start:local": "npx hardhat node & npm run deploy:local & npm run dev",
+    "verify:sepolia": "npx hardhat verify --network sepolia",
+    "verify:mainnet": "npx hardhat verify --network mainnet",
+    "test:blockchain": "npx hardhat run scripts/test-blockchain.cjs --network hardhat"
   },
   "dependencies": {
     "@hookform/resolvers": "^3.9.0",

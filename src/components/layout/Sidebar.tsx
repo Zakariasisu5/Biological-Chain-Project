@@ -10,7 +10,8 @@ import {
   Settings, 
   Shield,
   User,
-  History
+  History,
+  Brain
 } from 'lucide-react';
 import { cn } from '@/lib/utils';
 import { useIsMobile } from '@/hooks/use-mobile';
@@ -50,6 +51,7 @@ const Sidebar = () => {
     { icon: Activity, title: 'Health Metrics', path: '/metrics' },
     { icon: Heart, title: 'Vitals', path: '/vitals' },
     { icon: LineChart, title: 'Trends', path: '/trends' },
+    { icon: Brain, title: 'Advanced Health', path: '/advanced-health' },
     { icon: Bell, title: 'Alerts', path: '/alerts' },
     { icon: Shield, title: 'Blockchain', path: '/blockchain' },
     { icon: History, title: 'Activities', path: '/activities' },

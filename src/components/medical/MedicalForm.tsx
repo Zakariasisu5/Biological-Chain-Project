@@ -1,17 +1,17 @@
 // src/components/medical/MedicalForm.tsx
 import React, { useState } from "react";
-import { Contract } from "ethers";
 import { Button } from "@/components/ui/button";
 import { Input } from "@/components/ui/input";
 import { useToast } from "@/hooks/use-toast";
+import { useBlockchain } from '@/hooks/blockchain';
 
 interface MedicalFormProps {
-  contract: Contract;
   account: string;
   onRecordAdded: () => void;
 }
 
-const MedicalForm: React.FC<MedicalFormProps> = ({ contract, account, onRecordAdded }) => {
+const MedicalForm: React.FC<MedicalFormProps> = ({ account, onRecordAdded }) => {
+  const { addRecord: addRecordHelper, generateRecordHash } = useBlockchain();
   const { toast } = useToast();
   const [patient, setPatient] = useState("");
   const [diagnosis, setDiagnosis] = useState("");
@@ -19,12 +19,13 @@ const MedicalForm: React.FC<MedicalFormProps> = ({ contract, account, onRecordAd
   const [loading, setLoading] = useState(false);
 
   const addRecord = async () => {
-    if (!contract) return;
+    if (!addRecordHelper) return;
     try {
       setLoading(true);
       const patientAddress = patient || account;
-      const tx = await contract.addRecord(patientAddress, diagnosis, "text", treatment);
-      await tx.wait();
+      const recordHash = generateRecordHash ? generateRecordHash(`${patientAddress}-${diagnosis}`) : undefined;
+      if (!recordHash) throw new Error('Failed to generate record hash');
+      await addRecordHelper(patientAddress, diagnosis, "text", treatment, recordHash);
       toast({ title: "Record added!", description: "Successfully stored on blockchain" });
       setPatient(""); setDiagnosis(""); setTreatment("");
       onRecordAdded();

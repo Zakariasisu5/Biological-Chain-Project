@@ -2,7 +2,7 @@ import { useState } from "react";
 import { useBlockchain } from "@/hooks/blockchain";
 
 export default function AddRecordForm() {
-  const { contract, account } = useBlockchain(); // ✅ updated hook
+  const { account, addRecord: addRecordHelper, generateRecordHash } = useBlockchain();
   const [patient, setPatient] = useState("");
   const [description, setDescription] = useState("");
   const [loading, setLoading] = useState(false);
@@ -15,8 +15,8 @@ export default function AddRecordForm() {
       return;
     }
 
-    if (!contract) {
-      setMessage("⚠ Contract not connected");
+    if (!account) {
+      setMessage("⚠ Please connect your wallet");
       return;
     }
 
@@ -24,10 +24,11 @@ export default function AddRecordForm() {
     setMessage("");
 
     try {
-      // contract.addRecord(patientAddress, cidOrText, fileType, meta)
-      const tx = await contract.addRecord(account || patient, description, "text", "web-form");
-      await tx.wait(); // wait for confirmation
-      setMessage(`✅ Record added! Tx Hash: ${tx.hash}`);
+      const patientAddress = account || patient;
+      const recordHash = generateRecordHash ? generateRecordHash(`${patientAddress}-${description}`) : undefined;
+      if (!recordHash) throw new Error('Failed to generate record hash');
+      await addRecordHelper(patientAddress, description, "text", "web-form", recordHash);
+      setMessage(`✅ Record added!`);
       setPatient("");
       setDescription("");
     } catch (error: any) {
@@ -67,7 +68,7 @@ export default function AddRecordForm() {
 
         <button
           type="submit"
-          disabled={loading || !contract}
+          disabled={loading || !account}
           className="bg-blue-600 text-white px-4 py-2 rounded hover:bg-blue-700 disabled:opacity-50"
         >
           {loading ? "Submitting..." : "Add Record"}
