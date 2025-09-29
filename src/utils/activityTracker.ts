@@ -118,17 +118,28 @@ export const useActivityTracker = () => {
     page?: string,
     details?: ActivityDetails
   ) => {
-    if (currentUser?.id && isValidUUID(currentUser.id)) {
-      // Use debounced version for page views to prevent excessive logging
-      if (activityType === 'view_page') {
-        debouncedLogPageView(currentUser.id, activityType, page, details);
-      } else {
-        // For other types, log immediately
-        logUserActivity(currentUser.id, activityType, page, details);
-      }
+    // Prefer canonical Firebase user ID when available, otherwise fall back to wallet address
+    const uid = currentUser?.id || currentUser?.walletAddress || '';
+    if (!uid) {
+      // Skip tracking if we can't identify the user at all
+      // keep this log at debug level to avoid noise in production
+      console.debug('Skipping activity tracking: no user identifier available');
+      return;
+    }
+
+    // If the id looks like an Ethereum address, skip strict UUID validation
+    const isEth = /^0x[a-fA-F0-9]{40}$/.test(uid);
+    if (!isEth && !isValidUUID(uid)) {
+      console.debug('Skipping activity tracking: invalid user identifier format');
+      return;
+    }
+
+    // Use debounced version for page views to prevent excessive logging
+    if (activityType === 'view_page') {
+      debouncedLogPageView(uid, activityType, page, details);
     } else {
-      // Skip tracking if user ID is invalid
-      console.log('Skipping activity tracking: Invalid user ID');
+      // For other types, log immediately
+      logUserActivity(uid, activityType, page, details);
     }
   };
   

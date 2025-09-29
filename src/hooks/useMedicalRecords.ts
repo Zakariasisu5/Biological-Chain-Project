@@ -13,14 +13,27 @@ export function useMedicalRecords() {
       if ((window as any).ethereum) {
         try {
           const ethProvider = new ethers.BrowserProvider((window as any).ethereum);
-          const accounts = await ethProvider.send("eth_requestAccounts", []);
-          const ethSigner = await ethProvider.getSigner();
-          const medicalContract = new ethers.Contract(CONTRACT_ADDRESS, CONTRACT_ABI, ethSigner);
+          // Prefer a silent check for authorized accounts to avoid prompting users on page load
+          let accounts: string[] = [];
+          try {
+            accounts = (await ethProvider.send('eth_accounts', [])) as string[];
+          } catch (e) {
+            // ignore and fall back to no accounts
+            accounts = [];
+          }
 
-          setProvider(ethProvider);
-          setSigner(ethSigner);
-          setContract(medicalContract);
-          setAccount(accounts[0]);
+          if (accounts && accounts.length > 0) {
+            const ethSigner = await ethProvider.getSigner();
+            const medicalContract = new ethers.Contract(CONTRACT_ADDRESS, CONTRACT_ABI, ethSigner);
+
+            setProvider(ethProvider);
+            setSigner(ethSigner);
+            setContract(medicalContract);
+            setAccount(accounts[0]);
+          } else {
+            // No authorized accounts found. Do not force a prompt here; callers should trigger connect actions.
+            console.debug('useMedicalRecords: no authorized accounts on init (silent).');
+          }
         } catch (err) {
           console.error("Blockchain init error:", err);
         }

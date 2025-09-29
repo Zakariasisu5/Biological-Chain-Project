@@ -88,13 +88,86 @@ export class BlockchainService {
         chainId: this.chainId
       };
     } catch (error: any) {
-      console.error('Wallet connection error:', error);
+      // Log structured error information to help debugging RPC/provider issues
+      try {
+        console.error('Wallet connection error:', {
+          message: error?.message || String(error),
+          code: error?.code,
+          data: error?.data,
+          stack: error?.stack
+        });
+      } catch (logErr) {
+        console.error('Wallet connection error (log failed):', error);
+      }
       
       // Provide more specific error messages
       if (error.code === 4001) {
         throw new Error('User rejected the connection request');
       } else if (error.code === -32603) {
-        throw new Error('Network error. Please check your MetaMask network settings and ensure you are connected to localhost:8545');
+        // RPC/internal error commonly due to wrong network, inaccessible local node, or RPC/relay errors.
+        // Provide actionable guidance without assuming localhost in production.
+        const desiredChainId = Number(import.meta.env.VITE_CHAIN_ID || process.env.REACT_APP_CHAIN_ID || 11155111);
+        const desiredChainHex = `0x${desiredChainId.toString(16)}`;
+        const chainName = desiredChainId === 31337 ? 'Localhost (Hardhat)' : desiredChainId === 11155111 ? 'Sepolia' : desiredChainId === 1 ? 'Mainnet' : `chain ${desiredChainId}`;
+
+        // Try to programmatically switch the user's wallet to the desired chain where possible.
+        try {
+          if (window.ethereum && typeof window.ethereum.request === 'function') {
+            await window.ethereum.request({ method: 'wallet_switchEthereumChain', params: [{ chainId: desiredChainHex }] });
+            // reinitialize provider/signer and contract now that the chain has switched
+            this.provider = new ethers.BrowserProvider(window.ethereum as any);
+            this.signer = await this.provider.getSigner();
+            const network = await this.provider.getNetwork();
+            this.chainId = Number(network.chainId);
+            await this.initializeContract();
+            return {
+              account: this.account!,
+              chainId: this.chainId!
+            };
+          }
+        } catch (switchErr: any) {
+          // If the chain is unknown to the wallet (4902), try to add it if RPC URL is provided via env.
+          try {
+            if (switchErr?.code === 4902 && window.ethereum && typeof window.ethereum.request === 'function') {
+              const rpcUrl = import.meta.env.VITE_RPC_URL || process.env.REACT_APP_RPC_URL || '';
+              if (rpcUrl) {
+                await window.ethereum.request({
+                  method: 'wallet_addEthereumChain',
+                  params: [{
+                    chainId: desiredChainHex,
+                    chainName,
+                    rpcUrls: [rpcUrl]
+                  }]
+                });
+                // After adding, try switching again
+                await window.ethereum.request({ method: 'wallet_switchEthereumChain', params: [{ chainId: desiredChainHex }] });
+                this.provider = new ethers.BrowserProvider(window.ethereum as any);
+                this.signer = await this.provider.getSigner();
+                const network = await this.provider.getNetwork();
+                this.chainId = Number(network.chainId);
+                await this.initializeContract();
+                return {
+                  account: this.account!,
+                  chainId: this.chainId!
+                };
+              }
+            }
+          } catch (addErr) {
+            // fall through to throw a helpful message below
+            console.warn('Auto-add/switch failed:', addErr);
+          }
+        }
+
+        // If we reach here, programmatic switching failed. Give a helpful, environment-aware message.
+        const rpcHint = import.meta.env.VITE_RPC_URL || process.env.REACT_APP_RPC_URL ? ` RPC: ${import.meta.env.VITE_RPC_URL || process.env.REACT_APP_RPC_URL}` : '';
+        const isLocalDefault = (import.meta.env.VITE_CHAIN_ID || process.env.REACT_APP_CHAIN_ID || '').toString().includes('31337') || (import.meta.env.VITE_RPC_URL || process.env.REACT_APP_RPC_URL || '').toString().includes('localhost');
+
+        if (isLocalDefault) {
+          // If app is configured to use a local chain but user is in production, avoid telling them to connect to localhost explicitly.
+          throw new Error(`Network error. The application is configured to use ${chainName} (chainId ${desiredChainId}), which appears to be a local/test network. If you're running in production, update the application's environment variables to a public RPC and a public chain (e.g., Sepolia/Mainnet). ${rpcHint} Otherwise, switch your wallet to ${chainName}.`);
+        }
+
+        throw new Error(`Network error. Expected network: ${chainName} (chainId ${desiredChainId}). Please switch your wallet to that network.${rpcHint} If you continue to see this message, open your wallet and ensure it's unlocked and the RPC endpoint is reachable.`);
       } else if (error.message.includes('User denied')) {
         throw new Error('Connection was denied. Please approve the connection in MetaMask');
       } else {

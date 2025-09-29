@@ -372,8 +372,47 @@ export async function connectWallet(walletType: WalletType): Promise<WalletInfo>
   provider = new ethers.BrowserProvider(rawInjected);
   // attempt to switch Network to desired chain if needed
   trySwitchNetworkIfNeeded(provider, (window as any).ethereum).catch(() => {});
-  const accounts = await provider.send("eth_requestAccounts", []);
-  if (!accounts || accounts.length === 0) throw new Error("No accounts found");
+
+  // Prefer a silent accounts check first to avoid triggering permission prompts
+  let accounts: string[] = [];
+  try {
+    try {
+      // eth_accounts does not prompt the user; returns authorized accounts if present
+      // eslint-disable-next-line @typescript-eslint/no-explicit-any
+      accounts = (await provider.send('eth_accounts', [])) as string[];
+    } catch (silentErr) {
+      // Some providers may not implement eth_accounts via BrowserProvider; fall back to direct request
+      try {
+        // eslint-disable-next-line @typescript-eslint/no-explicit-any
+        accounts = ((window as any).ethereum?.request?.({ method: 'eth_accounts' }) || []) as string[];
+      } catch (e) {
+        accounts = [];
+      }
+    }
+
+    if (!accounts || accounts.length === 0) {
+      // No authorized accounts found silently; request interactively (user action expected)
+      try {
+        // eslint-disable-next-line @typescript-eslint/no-explicit-any
+        accounts = (await provider.send('eth_requestAccounts', [])) as string[];
+      } catch (reqErr: any) {
+        // Map common provider/relay errors to friendlier messages
+        const msg = String(reqErr?.message || reqErr || 'Failed to request accounts');
+        if (reqErr?.code === -32603 || msg.includes('PUBLIC_requestAccounts') || msg.toLowerCase().includes('could not coalesce')) {
+          throw new Error('Failed to request account access from your wallet. Please open your wallet extension/app and approve the connection. If the problem persists, check that your wallet is unlocked and that its RPC/network settings match the application configuration.');
+        }
+        if (msg.includes('User rejected') || reqErr?.code === 4001) {
+          throw new Error('Connection request rejected by user');
+        }
+        throw new Error(msg);
+      }
+    }
+
+    if (!accounts || accounts.length === 0) throw new Error('No accounts found');
+  } catch (finalErr) {
+    // Bubble the error up with a clear message
+    throw finalErr instanceof Error ? finalErr : new Error(String(finalErr));
+  }
 
   const network = await provider.getNetwork();
   const balanceBN = await provider.getBalance(accounts[0]);

@@ -1,26 +1,58 @@
 import { ethers } from 'ethers';
 import { CONTRACT_ADDRESS, CONTRACT_ABI } from '@/contracts/MedicalRecords';
 
-async function getProviderAndSigner() {
+async function getProviderAndSigner({ promptIfNeeded = true } = {}) {
   if (typeof window === 'undefined' || !(window as any).ethereum) {
     throw new Error('No injected wallet found');
   }
-  const provider = new ethers.BrowserProvider((window as any).ethereum);
-  await provider.send('eth_requestAccounts', []);
-  const signer = await provider.getSigner();
-  return { provider, signer };
+
+  const raw = (window as any).ethereum;
+  const provider = new ethers.BrowserProvider(raw);
+
+  try {
+    // Try silent accounts retrieval first to avoid a permission prompt during app init
+    const accounts: string[] = (await provider.send('eth_accounts', [])) as string[];
+    if (accounts && accounts.length > 0) {
+      const signer = await provider.getSigner();
+      return { provider, signer };
+    }
+  } catch (e) {
+    // ignore and fall back to explicit request below
+  }
+
+  // If no accounts were available and prompting is allowed, request accounts interactively
+  if (promptIfNeeded) {
+    try {
+      await provider.send('eth_requestAccounts', []);
+      const signer = await provider.getSigner();
+      return { provider, signer };
+    } catch (err: any) {
+      // Provide a clearer, actionable error message instead of raw RPC error objects
+      const msg = String(err?.message || err || 'Failed to request accounts');
+      if (msg.includes('User rejected') || err?.code === 4001) {
+        throw new Error('Connection request rejected by user');
+      }
+      // Generic fallback
+      throw new Error(`Failed to access accounts from injected wallet: ${msg}`);
+    }
+  }
+
+  throw new Error('No authorized accounts found. Call a connect action to prompt the user to connect their wallet.');
 }
 
 export async function getContract(signerOrProvider?: any) {
   if (!signerOrProvider) {
-    const { signer } = await getProviderAndSigner();
+    // default to non-prompting behavior; callers that need an interactive connect can call
+    // getProviderAndSigner({ promptIfNeeded: true }) explicitly
+    const { signer } = await getProviderAndSigner({ promptIfNeeded: false });
     return new ethers.Contract(CONTRACT_ADDRESS, CONTRACT_ABI, signer);
   }
   return new ethers.Contract(CONTRACT_ADDRESS, CONTRACT_ABI, signerOrProvider);
 }
 
 export async function addRecordOnChain(patientAddress: string, cid: string, fileType = 'any', meta = '') {
-  const { signer } = await getProviderAndSigner();
+  // This action requires an explicit user prompt if not already connected.
+  const { signer } = await getProviderAndSigner({ promptIfNeeded: true });
   const contract = new ethers.Contract(CONTRACT_ADDRESS, CONTRACT_ABI, signer);
   const recordHash = ethers.keccak256(ethers.toUtf8Bytes(`${patientAddress}-${cid}-${Date.now()}`));
   const tx = await contract.addRecord(patientAddress, cid, fileType, meta, recordHash);
@@ -29,7 +61,7 @@ export async function addRecordOnChain(patientAddress: string, cid: string, file
 }
 
 export async function grantAccessOnChain(providerAddress: string) {
-  const { signer } = await getProviderAndSigner();
+  const { signer } = await getProviderAndSigner({ promptIfNeeded: true });
   const contract = new ethers.Contract(CONTRACT_ADDRESS, CONTRACT_ABI, signer);
   const tx = await contract.grantAccess(providerAddress);
   await tx.wait();
@@ -37,7 +69,7 @@ export async function grantAccessOnChain(providerAddress: string) {
 }
 
 export async function revokeAccessOnChain(providerAddress: string) {
-  const { signer } = await getProviderAndSigner();
+  const { signer } = await getProviderAndSigner({ promptIfNeeded: true });
   const contract = new ethers.Contract(CONTRACT_ADDRESS, CONTRACT_ABI, signer);
   const tx = await contract.revokeAccess(providerAddress);
   await tx.wait();
